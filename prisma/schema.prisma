@@ -1,0 +1,208 @@
+// Prisma schema for Astegni Education & Tutoring Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  TUTOR
+  ADMIN
+  SUPPORT_SPECIALIST
+  MANAGER
+}
+
+enum LessonStatus {
+  CONFIRMED
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum TicketPriority {
+  URGENT
+  HIGH
+  NORMAL
+  LOW
+}
+
+enum TicketStatus {
+  OPEN
+  RESOLVED
+  ESCALATED
+}
+
+enum ApprovalType {
+  PTO
+  EXPENSE
+  GOAL
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+
+// -------------------------------------------------------------
+// Core User & Auth Model
+// -------------------------------------------------------------
+model User {
+  id           String    @id @default(cuid())
+  supabaseAuthId String @unique @db.Uuid
+  email        String    @unique
+  name         String
+  role         Role      @default(STUDENT)
+  avatarUrl    String?
+  phone        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Role Relations
+  tutorProfile    TutorProfile?
+  studentLessons  Lesson[]         @relation("StudentLessons")
+  tutorLessons    Lesson[]         @relation("TutorLessons")
+  assignments     Assignment[]
+  subjectProgress SubjectProgress[]
+  assignedTickets Ticket[]         @relation("AssignedTickets")
+  requestedApprovals Approval[]    @relation("RequestedApprovals")
+  managedApprovals   Approval[]    @relation("ManagedApprovals")
+  managedGoals       Goal[]
+  sentInvitations Invitation[] @relation("SentInvitations")
+}
+
+// -------------------------------------------------------------
+// Tutor Profiles (For Role: TUTOR)
+// -------------------------------------------------------------
+model TutorProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String?
+  university      String?
+  experienceYears Int      @default(0)
+  location        String?
+  modes           String[] @default([])
+  gradeLevels     String[] @default([])
+  languages       String[] @default([])
+  subjects         String[] // e.g. ["GCSE Mathematics", "Physics"]
+  hourlyRateETB    Int      @default(350)
+  hourlyRateUSD    Int      @default(15)
+  bio              String?
+  rating           Float    @default(5.0)
+  reviewsCount     Int      @default(0)
+  isVerified       Boolean  @default(false)
+  openForStudents  Boolean  @default(true)
+  typicalHours     String   @default("3:00-7:30 PM")
+  activeDays       String[] @default(["M", "T", "W", "Th", "F"])
+}
+
+// -------------------------------------------------------------
+// Lessons & Classroom Sessions
+// -------------------------------------------------------------
+model Lesson {
+  id           String       @id @default(cuid())
+  title        String       // e.g. "GCSE Mathematics"
+  topic        String?      // e.g. "Quadratic equations"
+  scheduledAt  DateTime
+  durationMins Int          @default(60)
+  status       LessonStatus @default(CONFIRMED)
+  meetingUrl   String?      // Video room link
+  createdAt    DateTime     @default(now())
+
+  studentId    String
+  student      User         @relation("StudentLessons", fields: [studentId], references: [id])
+  tutorId      String
+  tutor        User         @relation("TutorLessons", fields: [tutorId], references: [id])
+}
+
+// -------------------------------------------------------------
+// Student Progress & Assignments
+// -------------------------------------------------------------
+model Assignment {
+  id        String   @id @default(cuid())
+  title     String   // e.g. "Chemistry quiz"
+  dueDate   DateTime
+  status    String   @default("PENDING") // PENDING, SUBMITTED, GRADED
+  score     Int?
+  maxScore  Int?     @default(10)
+  studentId String
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model SubjectProgress {
+  id          String   @id @default(cuid())
+  subjectName String   // e.g. "Mathematics"
+  topic       String   // e.g. "Algebra & functions"
+  progressPct Int      @default(0) // e.g. 72%
+  studentId   String
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+// -------------------------------------------------------------
+// Support & Operations Desk (For Role: SUPPORT_SPECIALIST)
+// -------------------------------------------------------------
+model Ticket {
+  id             String         @id @default(cuid())
+  ticketCode     String         @unique // e.g. "SUP-4821"
+  title          String
+  detail         String
+  category       String         // "Login & access", "Billing & refunds", etc.
+  priority       TicketPriority @default(NORMAL)
+  status         TicketStatus   @default(OPEN)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  specialistId   String?
+  specialist     User?          @relation("AssignedTickets", fields: [specialistId], references: [id])
+}
+
+// -------------------------------------------------------------
+// Manager Approvals & Goals (For Role: MANAGER)
+// -------------------------------------------------------------
+model Approval {
+  id           String         @id @default(cuid())
+  type         ApprovalType   // PTO, EXPENSE, GOAL
+  title        String         // e.g. "Time off · Elena Ruiz"
+  detail       String         // e.g. "Sep 28–Oct 2"
+  status       ApprovalStatus @default(PENDING)
+  createdAt    DateTime       @default(now())
+
+  requesterId  String
+  requester    User           @relation("RequestedApprovals", fields: [requesterId], references: [id])
+  managerId    String
+  manager      User           @relation("ManagedApprovals", fields: [managerId], references: [id])
+}
+
+model Goal {
+  id          String   @id @default(cuid())
+  title       String   // e.g. "Reduce onboarding time"
+  progressPct Int      @default(0)
+  status      String   @default("ON_TRACK") // ON_TRACK, AT_RISK, OFF_TRACK
+  quarter     String   @default("Q3")
+  createdAt   DateTime @default(now())
+
+  managerId   String
+  manager     User     @relation(fields: [managerId], references: [id])
+}
+
+model Invitation {
+  id          String    @id @default(cuid())
+  email       String
+  role        Role
+  invitedById String
+  invitedBy   User      @relation("SentInvitations", fields: [invitedById], references: [id], onDelete: Restrict)
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+
+  @@index([email, acceptedAt])
+  @@index([expiresAt])
+}
