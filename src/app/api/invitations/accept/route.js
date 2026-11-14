@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 import { requireUser } from '../../../../lib/auth';
 import { invitationAcceptSchema, validationMessage } from '../../../../lib/validation';
+import { consumeRateLimit, rateLimitExceededResponse } from '../../../../lib/rate-limit';
 
 export async function POST(request) {
   try {
@@ -9,6 +10,9 @@ export async function POST(request) {
     if (!appUser) {
       return NextResponse.json({ error: 'Sign in with the invited email address.' }, { status: 401 });
     }
+
+    const rate = await consumeRateLimit({ scope: 'invitation-accept', identity: appUser.id, limit: 10, windowMs: 60 * 60 * 1000 });
+    if (!rate.allowed) return rateLimitExceededResponse(rate, 'Too many invitation attempts. Try again later.');
 
     const body = await request.json().catch(() => null);
     const validation = invitationAcceptSchema.safeParse(body);

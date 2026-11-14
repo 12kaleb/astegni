@@ -3,10 +3,13 @@ import { prisma } from '../../../../../lib/prisma';
 import { requireUser } from '../../../../../lib/auth';
 import { lessonReviewSchema, validationMessage } from '../../../../../lib/validation';
 import { reportException } from '../../../../../lib/observability';
+import { consumeRateLimit, rateLimitExceededResponse } from '../../../../../lib/rate-limit';
 
 export async function POST(request, context) {
   const student = await requireUser('STUDENT');
   if (!student) return NextResponse.json({ error: 'Student access required.' }, { status: 403 });
+  const rate = await consumeRateLimit({ scope: 'lesson-review', identity: student.id, limit: 5, windowMs: 60 * 60 * 1000 });
+  if (!rate.allowed) return rateLimitExceededResponse(rate, 'Too many review attempts. Try again later.');
 
   const { id: lessonId } = await context.params;
   const body = await request.json().catch(() => null);

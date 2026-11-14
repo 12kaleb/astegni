@@ -4,6 +4,7 @@ import { prisma } from '../../../../lib/prisma';
 import { requireUser } from '../../../../lib/auth';
 import { paymentCheckoutSchema, validationMessage } from '../../../../lib/validation';
 import { reportException } from '../../../../lib/observability';
+import { consumeRateLimit, rateLimitExceededResponse } from '../../../../lib/rate-limit';
 
 function publicOrigin() {
   return (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/$/, '');
@@ -12,6 +13,8 @@ function publicOrigin() {
 export async function POST(request) {
   const student = await requireUser('STUDENT');
   if (!student) return NextResponse.json({ error: 'Student access required.' }, { status: 403 });
+  const rate = await consumeRateLimit({ scope: 'payment-checkout', identity: student.id, limit: 5, windowMs: 15 * 60 * 1000 });
+  if (!rate.allowed) return rateLimitExceededResponse(rate, 'Too many checkout attempts. Try again later.');
   const body = await request.json().catch(() => null);
   const validation = paymentCheckoutSchema.safeParse(body);
   if (!validation.success) return NextResponse.json({ error: validationMessage(validation.error) }, { status: 400 });

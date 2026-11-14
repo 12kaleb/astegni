@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 import { requireUser } from '../../../../lib/auth';
-import { hasLessonConflict, lockBookingParticipants, requireAvailableSlot } from '../../../../lib/bookings';
+import { OutsideAvailabilityError, hasLessonConflict, lockBookingParticipants, requireAvailableSlot } from '../../../../lib/bookings';
+import { consumeRateLimit, rateLimitExceededResponse } from '../../../../lib/rate-limit';
 import { lessonActionSchema, validationMessage } from '../../../../lib/validation';
 import { notifyLessonConfirmed } from '../../../../lib/notifications';
 import { reportException } from '../../../../lib/observability';
@@ -13,6 +14,8 @@ export async function PATCH(request, context) {
   try {
     const actor = await requireUser();
     if (!actor || !['STUDENT', 'TUTOR'].includes(actor.role)) return NextResponse.json({ error: 'Student or tutor access required.' }, { status: 403 });
+    const rate = await consumeRateLimit({ scope: 'lesson-update', identity: actor.id, limit: 20, windowMs: 15 * 60 * 1000 });
+    if (!rate.allowed) return rateLimitExceededResponse(rate, 'Too many lesson updates. Try again later.');
     const { id } = await context.params;
     const body = await request.json().catch(() => null);
     const validation = lessonActionSchema.safeParse(body);
@@ -117,7 +120,7 @@ export async function PATCH(request, context) {
     }
     return NextResponse.json({ lesson: result.lesson });
   } catch (error) {
-    if (error.message?.includes('outside this tutor')) return NextResponse.json({ error: error.message }, { status: 409 });
+    if (error instanceof OutsideAvailabilityError) return NextResponse.json({ error: error.message }, { status: 409 });
     reportException('lessons.update', error);
     return NextResponse.json({ error: 'Unable to update this lesson.' }, { status: 500 });
   }

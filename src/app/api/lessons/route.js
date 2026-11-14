@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '../../../lib/prisma';
 import { requireUser } from '../../../lib/auth';
 import { consumeRateLimit } from '../../../lib/rate-limit';
-import { hasLessonConflict, lockBookingParticipants, requireAvailableSlot } from '../../../lib/bookings';
+import { BookingConflictError, GuardianConsentRequiredError, OutsideAvailabilityError, hasLessonConflict, lockBookingParticipants, requireAvailableSlot } from '../../../lib/bookings';
 import { isValidTimeZone } from '../../../lib/bookings';
 import { lessonBookingSchema, validationMessage } from '../../../lib/validation';
 import { notifyLessonRequest } from '../../../lib/notifications';
@@ -69,12 +69,12 @@ export async function POST(request) {
       const currentStudent = await tx.user.findUnique({ where: { id: student.id }, select: { isMinor: true } });
       if (currentStudent?.isMinor) {
         const consent = await tx.guardianConsent.findUnique({ where: { studentId: student.id }, select: { status: true } });
-        if (consent?.status !== 'APPROVED') throw new Error('Parent or guardian consent must be approved before booking.');
+        if (consent?.status !== 'APPROVED') throw new GuardianConsentRequiredError();
       }
       const tutorAccount = await tx.user.findUnique({ where: { id: tutor.userId }, select: { timeZone: true } });
       await requireAvailableSlot(tx, tutor.userId, scheduledAt, booking.durationMins, tutorAccount.timeZone);
       if (await hasLessonConflict(tx, { studentId: student.id, tutorId: tutor.userId, scheduledAt, durationMins: booking.durationMins })) {
-        throw new Error('The student or tutor already has a lesson during that time.');
+        throw new BookingConflictError();
       }
       await tx.user.update({ where: { id: student.id }, data: { timeZone: booking.timeZone } });
       await tx.tutorSelection.upsert({ where: { studentId_tutorId: { studentId: student.id, tutorId: tutor.userId } }, create: { studentId: student.id, tutorId: tutor.userId }, update: {} });
@@ -90,9 +90,10 @@ export async function POST(request) {
     try { await notifyLessonRequest(lesson.id); } catch (error) { console.error('Booking notification failed:', error); }
     return NextResponse.json({ lesson }, { status: 201 });
   } catch (error) {
-    const conflict = error.message?.includes('already has a lesson') || error.message?.includes('outside this tutor');
-    if (conflict) return NextResponse.json({ error: error.message }, { status: 409 });
-    if (error.message?.includes('consent must be approved')) return NextResponse.json({ error: error.message }, { status: 403 });
+    if (error instanceof BookingConflictError || error instanceof OutsideAvailabilityError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    if (error instanceof GuardianConsentRequiredError) return NextResponse.json({ error: error.message }, { status: 403 });
     reportException('lessons.create', error);
     return NextResponse.json({ error: 'Unable to request this lesson.' }, { status: 500 });
   }

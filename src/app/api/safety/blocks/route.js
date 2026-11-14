@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 import { requireUser } from '../../../../lib/auth';
 import { blockUserSchema, validationMessage } from '../../../../lib/validation';
+import { consumeRateLimit, rateLimitExceededResponse } from '../../../../lib/rate-limit';
 
 export async function GET() {
   const user = await requireUser();
@@ -14,6 +15,8 @@ export async function POST(request) {
   try {
     const user = await requireUser();
     if (!user || !['STUDENT', 'TUTOR'].includes(user.role)) return NextResponse.json({ error: 'Student or tutor access required.' }, { status: 403 });
+    const rate = await consumeRateLimit({ scope: 'safety-blocks', identity: user.id, limit: 20, windowMs: 60 * 60 * 1000 });
+    if (!rate.allowed) return rateLimitExceededResponse(rate, 'Too many block changes. Try again later.');
     const body = await request.json().catch(() => null);
     const validation = blockUserSchema.safeParse(body);
     if (!validation.success) return NextResponse.json({ error: validationMessage(validation.error) }, { status: 400 });
@@ -32,6 +35,8 @@ export async function DELETE(request) {
   try {
     const user = await requireUser();
     if (!user || !['STUDENT', 'TUTOR'].includes(user.role)) return NextResponse.json({ error: 'Student or tutor access required.' }, { status: 403 });
+    const rate = await consumeRateLimit({ scope: 'safety-blocks', identity: user.id, limit: 20, windowMs: 60 * 60 * 1000 });
+    if (!rate.allowed) return rateLimitExceededResponse(rate, 'Too many block changes. Try again later.');
     const body = await request.json().catch(() => null);
     const validation = blockUserSchema.safeParse(body);
     if (!validation.success) return NextResponse.json({ error: validationMessage(validation.error) }, { status: 400 });

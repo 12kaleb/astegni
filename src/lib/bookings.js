@@ -1,5 +1,29 @@
 const WEEKDAY_INDEX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
+export class BookingConflictError extends Error {
+  constructor(message = 'A participant already has a lesson during that time.') {
+    super(message);
+    this.name = 'BookingConflictError';
+    this.code = 'BOOKING_CONFLICT';
+  }
+}
+
+export class OutsideAvailabilityError extends Error {
+  constructor() {
+    super('The requested time is outside this tutor’s published availability.');
+    this.name = 'OutsideAvailabilityError';
+    this.code = 'OUTSIDE_AVAILABILITY';
+  }
+}
+
+export class GuardianConsentRequiredError extends Error {
+  constructor() {
+    super('Parent or guardian consent must be approved before booking.');
+    this.name = 'GuardianConsentRequiredError';
+    this.code = 'GUARDIAN_CONSENT_REQUIRED';
+  }
+}
+
 export function isValidTimeZone(timeZone) {
   try { new Intl.DateTimeFormat('en-US', { timeZone }); return true; } catch (error) {
     console.warn('[bookings] invalid time zone:', error.message);
@@ -23,7 +47,7 @@ export async function requireAvailableSlot(tx, tutorId, scheduledAt, durationMin
   const { weekday, minute } = localParts(scheduledAt, timeZone);
   const slots = await tx.availability.findMany({ where: { tutorId, weekday }, select: { startMinute: true, endMinute: true } });
   if (!slots.some((slot) => minute >= slot.startMinute && minute + durationMins <= slot.endMinute)) {
-    throw new Error('The requested time is outside this tutor’s published availability.');
+    throw new OutsideAvailabilityError();
   }
 }
 
