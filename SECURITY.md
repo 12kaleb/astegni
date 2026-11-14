@@ -14,9 +14,9 @@ Public signup accepts only student or tutor roles. Admin, manager, and support s
 
 ## Rate limits
 
-Signup, tutor profile updates, lesson booking requests, tutor lesson scheduling, verification uploads, avatar uploads, and safety reports use atomic fixed-window counters in PostgreSQL. The signup route limits both source IP and normalized email; other writes limit by authenticated user. `Retry-After` is returned when a limit is reached. If the rate-limit table is unavailable, these writes fail closed with `503`.
+Signup, tutor profile updates, lesson booking requests, tutor lesson scheduling, lesson updates, reviews, payment checkout, invitation acceptance, safety blocks, verification uploads, avatar uploads, and safety reports use fixed-window counters in PostgreSQL. The signup route limits both source IP and normalized email; other writes limit by authenticated user. `Retry-After` is returned when a limit is reached. If the rate-limit table is unavailable, a bounded in-memory fallback applies limits per server process until PostgreSQL recovers. This degraded mode avoids making every write unavailable, but it is not a strict shared limit across multiple server instances.
 
-The signup IP limit reads `x-real-ip` or the first `x-forwarded-for` value. Deploy behind a trusted proxy that overwrites these headers; otherwise clients may spoof their IP bucket.
+The signup IP limit reads `x-real-ip` or the first `x-forwarded-for` value only on Vercel or when `TRUST_PROXY_HEADERS=true`. Set that variable only when a trusted reverse proxy overwrites these headers. Without it, all requests share one IP bucket and the server logs a startup warning; this avoids trusting spoofable client headers but means IP-based signup throttling is shared across users. For non-Vercel production, configure the trusted proxy and set the variable before launch.
 
 Supabase Auth remains directly reachable using the public project URL and publishable key. Configure Supabase Auth's own rate limits and CAPTCHA/bot protection in the Supabase project as well; the application route limiter only covers requests routed through Astegni.
 

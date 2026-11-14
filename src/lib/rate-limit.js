@@ -4,6 +4,12 @@ import { prisma } from './prisma';
 const fallbackBuckets = new Map();
 const MAX_FALLBACK_BUCKETS = 10_000;
 
+if (process.env.VERCEL !== '1' && process.env.TRUST_PROXY_HEADERS !== 'true') {
+  console.warn(
+    '[rate-limit] No trusted client IP proxy is configured. IP-based limits will share one bucket; set TRUST_PROXY_HEADERS=true only when a trusted reverse proxy overwrites x-forwarded-for or x-real-ip.'
+  );
+}
+
 function consumeFallbackBucket(key, limit, windowMs) {
   const now = Date.now();
   if (fallbackBuckets.size >= MAX_FALLBACK_BUCKETS) {
