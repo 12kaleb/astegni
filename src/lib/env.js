@@ -14,6 +14,14 @@ function parseUrl(name, value) {
 }
 
 export function validateServerEnv() {
+  if (process.env.VERCEL !== '1' && process.env.TRUST_PROXY_HEADERS !== 'true') {
+    const message = 'No trusted client IP proxy is configured. IP-based limits will share one bucket. Configure a trusted proxy to overwrite x-forwarded-for or x-real-ip and set TRUST_PROXY_HEADERS=true.';
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`Non-Vercel production cannot start. ${message}`);
+    }
+    console.warn(`[rate-limit] ${message}`);
+  }
+
   const missing = requiredServerVariables.filter((name) => !process.env[name]?.trim());
   if (process.env.NODE_ENV === 'production' && !process.env.NEXT_PUBLIC_SITE_URL?.trim()) {
     missing.push('NEXT_PUBLIC_SITE_URL');
