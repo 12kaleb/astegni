@@ -15,6 +15,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
       NEXT_PUBLIC_SITE_URL: https://example.invalid
       NEXT_PUBLIC_SENTRY_DSN: ''
+      TRUST_PROXY_HEADERS: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
