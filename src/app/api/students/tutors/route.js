@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 import { requireUser } from '../../../../lib/auth';
 import { tutorSelectionSchema, validationMessage } from '../../../../lib/validation';
+import { consumeRateLimit, rateLimitExceededResponse } from '../../../../lib/rate-limit';
 
 export async function GET() {
   try {
@@ -34,6 +35,9 @@ export async function POST(request) {
     if (!student) {
       return NextResponse.json({ error: 'Sign in with a student account to select a tutor.' }, { status: 403 });
     }
+
+    const rate = await consumeRateLimit({ scope: 'student-tutor-selection', identity: student.id, limit: 30, windowMs: 60 * 60 * 1000 });
+    if (!rate.allowed) return rateLimitExceededResponse(rate, 'Too many tutor selection changes. Try again later.');
 
     const studentAccount = await prisma.user.findUnique({ where: { id: student.id }, select: { isMinor: true } });
     if (studentAccount?.isMinor) {

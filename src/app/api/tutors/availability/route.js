@@ -3,6 +3,7 @@ import { prisma } from '../../../../lib/prisma';
 import { requireUser } from '../../../../lib/auth';
 import { availabilitySchema, validationMessage } from '../../../../lib/validation';
 import { lockBookingParticipants } from '../../../../lib/bookings';
+import { consumeRateLimit, rateLimitExceededResponse } from '../../../../lib/rate-limit';
 
 function toMinute(value) { const [hour, minute] = value.split(':').map(Number); return hour * 60 + minute; }
 function toTime(value) { return `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`; }
@@ -20,6 +21,8 @@ export async function GET() {
 export async function PUT(request) {
   const tutor = await requireUser('TUTOR');
   if (!tutor) return NextResponse.json({ error: 'Tutor access required.' }, { status: 403 });
+  const rate = await consumeRateLimit({ scope: 'tutor-availability', identity: tutor.id, limit: 20, windowMs: 60 * 60 * 1000 });
+  if (!rate.allowed) return rateLimitExceededResponse(rate, 'Too many availability updates. Try again later.');
   const body = await request.json().catch(() => null);
   const validation = availabilitySchema.safeParse(body);
   if (!validation.success) return NextResponse.json({ error: validationMessage(validation.error) }, { status: 400 });

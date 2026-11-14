@@ -5,6 +5,7 @@ import {
   studentAssignmentUpdateSchema,
   validationMessage,
 } from '../../../../lib/validation';
+import { consumeRateLimit, rateLimitExceededResponse } from '../../../../lib/rate-limit';
 
 export async function GET() {
   try {
@@ -53,6 +54,9 @@ export async function PATCH(request) {
       );
     }
 
+    const rate = await consumeRateLimit({ scope: 'student-assignments', identity: appUser.id, limit: 40, windowMs: 60 * 60 * 1000 });
+    if (!rate.allowed) return rateLimitExceededResponse(rate, 'Too many assignment changes. Try again later.');
+
     const body = await request.json().catch(() => null);
     const validation = studentAssignmentUpdateSchema.safeParse(body);
     if (!validation.success) {
@@ -92,6 +96,9 @@ export async function POST(request) {
         { status: 403 }
       );
     }
+
+    const rate = await consumeRateLimit({ scope: 'student-assignments', identity: appUser.id, limit: 40, windowMs: 60 * 60 * 1000 });
+    if (!rate.allowed) return rateLimitExceededResponse(rate, 'Too many assignment changes. Try again later.');
 
     const body = await request.json().catch(() => null);
     const validation = studentAssignmentCreateSchema.safeParse(body);

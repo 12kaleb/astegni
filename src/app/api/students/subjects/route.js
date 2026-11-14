@@ -1,6 +1,7 @@
 import { prisma } from '../../../../lib/prisma';
 import { requireUser } from '../../../../lib/auth';
 import { subjectProgressCreateSchema, validationMessage } from '../../../../lib/validation';
+import { consumeRateLimit, rateLimitExceededResponse } from '../../../../lib/rate-limit';
 
 export async function GET() {
   try {
@@ -43,6 +44,9 @@ export async function POST(request) {
         { status: 403 }
       );
     }
+
+    const rate = await consumeRateLimit({ scope: 'student-subjects', identity: appUser.id, limit: 30, windowMs: 60 * 60 * 1000 });
+    if (!rate.allowed) return rateLimitExceededResponse(rate, 'Too many subject changes. Try again later.');
 
     const body = await request.json().catch(() => null);
     const validation = subjectProgressCreateSchema.safeParse(body);

@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
 import { requireUser } from '../../../../lib/auth';
-import { OutsideAvailabilityError, hasLessonConflict, lockBookingParticipants, requireAvailableSlot } from '../../../../lib/bookings';
+import { OutsideAvailabilityError, canRescheduleAgain, hasLessonConflict, isWithinCancellationWindow, lockBookingParticipants, requireAvailableSlot } from '../../../../lib/bookings';
 import { consumeRateLimit, rateLimitExceededResponse } from '../../../../lib/rate-limit';
 import { lessonActionSchema, validationMessage } from '../../../../lib/validation';
 import { notifyLessonConfirmed } from '../../../../lib/notifications';
 import { reportException } from '../../../../lib/observability';
 import { createMeetingUrl } from '../../../../lib/video';
-
-const CANCELLATION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export async function PATCH(request, context) {
   try {
@@ -66,14 +64,14 @@ export async function PATCH(request, context) {
 
       if (input.action === 'CANCEL') {
         const protectedTime = lesson.previousScheduledAt || lesson.scheduledAt;
-        if (protectedTime.getTime() - Date.now() < CANCELLATION_WINDOW_MS) return { error: 'Lessons cannot be cancelled within 24 hours of their start time.', status: 409 };
+        if (isWithinCancellationWindow(protectedTime)) return { error: 'Lessons cannot be cancelled within 24 hours of their start time.', status: 409 };
         const updated = await tx.lesson.update({ where: { id }, data: { status: 'CANCELLED', cancelledById: actor.id, cancellationReason: input.reason, pendingActionById: null, previousScheduledAt: null, previousDurationMins: null } });
         return { lesson: updated };
       }
 
       if (input.action === 'RESCHEDULE') {
-        if (lesson.status !== 'CONFIRMED' || lesson.previousScheduledAt || lesson.rescheduleCount >= 3) return { error: 'This lesson cannot be rescheduled again.', status: 409 };
-        if (lesson.scheduledAt.getTime() - Date.now() < CANCELLATION_WINDOW_MS) return { error: 'Lessons cannot be rescheduled within 24 hours of their start time.', status: 409 };
+        if (lesson.status !== 'CONFIRMED' || lesson.previousScheduledAt || !canRescheduleAgain(lesson.rescheduleCount)) return { error: 'This lesson cannot be rescheduled again.', status: 409 };
+        if (isWithinCancellationWindow(lesson.scheduledAt)) return { error: 'Lessons cannot be rescheduled within 24 hours of their start time.', status: 409 };
         const nextTime = new Date(input.scheduledAt);
         if (nextTime <= new Date()) return { error: 'Choose a future time.' , status: 400 };
         const tutor = await tx.user.findUnique({ where: { id: lesson.tutorId }, select: { timeZone: true } });

@@ -14,13 +14,11 @@ Public signup accepts only student or tutor roles. Admin, manager, and support s
 
 ## Rate limits
 
-Signup, tutor profile updates, lesson booking requests, tutor lesson scheduling, lesson updates, reviews, payment checkout, invitation acceptance, safety blocks, verification uploads, avatar uploads, and safety reports use fixed-window counters in PostgreSQL. The signup route limits both source IP and normalized email; other writes limit by authenticated user. `Retry-After` is returned when a limit is reached. If the rate-limit table is unavailable, a bounded in-memory fallback applies limits per server process until PostgreSQL recovers. This degraded mode avoids making every write unavailable, but it is not a strict shared limit across multiple server instances.
+Signup, tutor profile updates, lesson booking requests, lesson updates, reviews, payment checkout, invitation acceptance, safety blocks, student subject and assignment changes, tutor assignment and availability changes, tutor selections, verification uploads, avatar uploads, and safety reports use fixed-window counters in PostgreSQL. The signup route limits both source IP and normalized email; other writes limit by authenticated user. `Retry-After` is returned when a limit is reached. If the rate-limit table is unavailable, a bounded in-memory fallback applies limits per server process until PostgreSQL recovers. This degraded mode avoids making every write unavailable, but it is not a strict shared limit across multiple server instances.
 
 The signup IP limit reads `x-real-ip` or the first `x-forwarded-for` value only on Vercel or when `TRUST_PROXY_HEADERS=true`. Set that variable only when a trusted reverse proxy overwrites these headers. Without it, all requests share one IP bucket. Non-Vercel production fails startup until a trusted proxy is configured and the variable is set, rather than silently throttling every user together. Development logs a warning while using the shared bucket.
 
 Supabase Auth remains directly reachable using the public project URL and publishable key. Configure Supabase Auth's own rate limits and CAPTCHA/bot protection in the Supabase project as well; the application route limiter only covers requests routed through Astegni.
-
-When a student booking endpoint is added, it must use the shared `consumeRateLimit` helper before creating lessons.
 
 ## Database connections and environment
 

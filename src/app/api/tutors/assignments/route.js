@@ -6,6 +6,7 @@ import {
   tutorAssignmentUpdateSchema,
   validationMessage,
 } from '../../../../lib/validation';
+import { consumeRateLimit, rateLimitExceededResponse } from '../../../../lib/rate-limit';
 
 export async function GET() {
   try {
@@ -51,6 +52,9 @@ export async function POST(request) {
     if (!tutor) {
       return NextResponse.json({ error: 'Tutor access required' }, { status: 403 });
     }
+
+    const rate = await consumeRateLimit({ scope: 'tutor-assignments', identity: tutor.id, limit: 40, windowMs: 60 * 60 * 1000 });
+    if (!rate.allowed) return rateLimitExceededResponse(rate, 'Too many assignment changes. Try again later.');
 
     const body = await request.json().catch(() => null);
     const validation = tutorAssignmentCreateSchema.safeParse(body);
@@ -118,6 +122,9 @@ export async function PATCH(request) {
     if (!tutor) {
       return NextResponse.json({ error: 'Tutor access required' }, { status: 403 });
     }
+
+    const rate = await consumeRateLimit({ scope: 'tutor-assignments', identity: tutor.id, limit: 40, windowMs: 60 * 60 * 1000 });
+    if (!rate.allowed) return rateLimitExceededResponse(rate, 'Too many assignment changes. Try again later.');
 
     const body = await request.json().catch(() => null);
     const validation = tutorAssignmentUpdateSchema.safeParse(body);

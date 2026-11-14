@@ -1,4 +1,14 @@
 const WEEKDAY_INDEX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+export const CANCELLATION_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const MAX_RESCHEDULE_COUNT = 3;
+
+export function isWithinCancellationWindow(startTime, now = Date.now()) {
+  return new Date(startTime).getTime() - now < CANCELLATION_WINDOW_MS;
+}
+
+export function canRescheduleAgain(rescheduleCount) {
+  return rescheduleCount < MAX_RESCHEDULE_COUNT;
+}
 
 export class BookingConflictError extends Error {
   constructor(message = 'A participant already has a lesson during that time.') {

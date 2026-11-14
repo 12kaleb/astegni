@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   BookingConflictError,
   OutsideAvailabilityError,
+  canRescheduleAgain,
   hasLessonConflict,
+  isWithinCancellationWindow,
   requireAvailableSlot,
 } from './bookings';
 
@@ -40,6 +42,17 @@ describe('requireAvailableSlot', () => {
     const tx = { availability: { findMany: vi.fn().mockResolvedValue([{ startMinute: 540, endMinute: 600 }]) } };
 
     await expect(requireAvailableSlot(tx, 'tutor-1', scheduledAt, 61, 'UTC')).rejects.toBeInstanceOf(OutsideAvailabilityError);
+  });
+
+  it('uses the tutor’s local weekday for a slot shortly after midnight in Addis Ababa', async () => {
+    const shortlyAfterMidnightUtc = new Date('2026-11-16T21:30:00.000Z');
+    const tx = { availability: { findMany: vi.fn().mockResolvedValue([{ startMinute: 30, endMinute: 90 }]) } };
+
+    await expect(requireAvailableSlot(tx, 'tutor-1', shortlyAfterMidnightUtc, 60, 'Africa/Addis_Ababa')).resolves.toBeUndefined();
+    expect(tx.availability.findMany).toHaveBeenCalledWith({
+      where: { tutorId: 'tutor-1', weekday: 2 },
+      select: { startMinute: true, endMinute: true },
+    });
   });
 });
 
@@ -85,5 +98,20 @@ describe('hasLessonConflict', () => {
 describe('BookingConflictError', () => {
   it('has a stable code independent of its message', () => {
     expect(new BookingConflictError('wording can change').code).toBe('BOOKING_CONFLICT');
+  });
+});
+
+describe('booking change limits', () => {
+  const now = new Date('2026-11-16T09:00:00.000Z').getTime();
+
+  it('blocks cancellation inside 24 hours and allows it at the exact boundary', () => {
+    expect(isWithinCancellationWindow(new Date(now + 23 * 60 * 60 * 1000 + 59 * 60 * 1000), now)).toBe(true);
+    expect(isWithinCancellationWindow(new Date(now + 24 * 60 * 60 * 1000), now)).toBe(false);
+    expect(isWithinCancellationWindow(new Date(now - 1), now)).toBe(true);
+  });
+
+  it('allows up to three completed reschedules and blocks another', () => {
+    expect(canRescheduleAgain(2)).toBe(true);
+    expect(canRescheduleAgain(3)).toBe(false);
   });
 });
