@@ -1,43 +1,23 @@
 'use client';
 
-import React, { useState,useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Search, Filter, SlidersHorizontal, MapPin, Star, CheckCircle, Shield } from 'lucide-react';
 import TutorCard from '../components/TutorCard';
+import { SUBJECT_GROUPS } from '../lib/subject-catalog';
 
-export default function TutorDirectoryView({ onSelectTutor, currency ,initialSearchTerm}) {
+export default function TutorDirectoryView({ tutors: initialTutors = [], onSelectTutor, onViewTutor, initialSearchTerm = '', selectedTutorIds = [] }) {
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [selectedSubject, setSelectedSubject] = useState('All');
-  const [maxPrice, setMaxPrice] = useState(600);
-  const [selectedMode, setSelectedMode] = useState('All');
-  const [tutors, setTutors] = useState([]);
-const [isLoading, setIsLoading] = useState(true);
-const [loadError, setLoadError] = useState('');
-useEffect(() => {
-  let cancelled = false;
-
-  async function loadTutors() {
-    try {
-      const response = await fetch('/api/tutors');
-      if (!response.ok) throw new Error('Tutor request failed');
-
-      const data = await response.json();
-      if (!cancelled) setTutors(data);
-    } catch {
-      if (!cancelled) setLoadError('Could not load tutors. Please try again.');
-    } finally {
-      if (!cancelled) setIsLoading(false);
-    }
-  }
-
-  loadTutors();
-  return () => {
-    cancelled = true;
-  };
-}, []);
+  const [maxPrice, setMaxPrice] = useState(1000);
+  const [selectedMode, setSelectedMode] = useState('Online');
+  const tutors = initialTutors;
+  useEffect(() => { setSearchTerm(initialSearchTerm); }, [initialSearchTerm]);
   const filteredTutors = tutors.filter((tutor) => {
+    const hourlyRate = tutor.hourlyRateETB == null ? null : Number(tutor.hourlyRateETB);
+    if (hourlyRate !== null && (!Number.isFinite(hourlyRate) || hourlyRate < 0 || hourlyRate > maxPrice)) return false;
     // Subject filter
     if (selectedSubject !== 'All') {
-      const matchSubject = tutor.subjects.some(s => s.toLowerCase().includes(selectedSubject.toLowerCase()));
+      const matchSubject = (tutor.subjects || []).some(s => s.toLowerCase().includes(selectedSubject.toLowerCase()));
       if (!matchSubject) return false;
     }
 
@@ -47,13 +27,12 @@ useEffect(() => {
       const matchLocation = tutor.location.toLowerCase().includes(query);
       const matchName = tutor.name.toLowerCase().includes(query);
       const matchBio = tutor.bio.toLowerCase().includes(query);
-      const matchSubjects = tutor.subjects.some(s => s.toLowerCase().includes(query));
+      const matchSubjects = (tutor.subjects || []).some(s => s.toLowerCase().includes(query));
       if (!matchName && !matchBio && !matchSubjects && !matchLocation) return false;
     }
 
     // Price and mode filter
-    if (tutor.hourlyRateETB > maxPrice) return false;
-    if (selectedMode !== 'All' && !tutor.modes.includes(selectedMode)){
+    if (selectedMode === 'Online' && (tutor.modes || []).length > 0 && !(tutor.modes || []).some((mode) => mode.toLowerCase() === 'online')){
       return false;
     }
     return true;
@@ -68,7 +47,7 @@ useEffect(() => {
           <span className="badge badge-coral mb-2">Addis Ababa & Online Tutors</span>
           <h1 className="text-3xl md:text-4xl font-extrabold text-[#0A1428]">Find Your Ideal Astegni Tutor</h1>
           <p className="text-xs md:text-sm text-[#64748B] mt-1">
-            Browse verified Ethiopian educators with proven Grade 8 & 12 national exam pass rates.
+            Compare verified tutor profiles, subjects, experience, and listed hourly rates.
           </p>
         </div>
 
@@ -104,11 +83,11 @@ useEffect(() => {
               className="w-full px-3 py-2.5 rounded-xl bg-[#FAF7F2] border border-[#CBD5E1] text-xs font-semibold text-[#0A1428] focus:outline-none focus:border-[#E05A47]"
             >
               <option value="All">All Subjects</option>
-              <option value="Mathematics">Mathematics & Calculus</option>
-              <option value="Physics">Physics</option>
-              <option value="Chemistry">Chemistry</option>
-              <option value="English">English Language</option>
-              <option value="Coding">Python & ICT Coding</option>
+      {SUBJECT_GROUPS.map(({ name, subjects }) => (
+        <optgroup key={name} label={name}>
+          {subjects.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
+        </optgroup>
+      ))}
             </select>
           </div>
 
@@ -119,13 +98,27 @@ useEffect(() => {
               <span className="text-[#E05A47] font-extrabold">{maxPrice} ETB</span>
             </div>
             <input
+              aria-label="Maximum tutor hourly rate in ETB"
               type="range"
-              min="300"
-              max="700"
-              step="50"
+              min="0"
+              max="1000"
+              step="10"
               value={maxPrice}
               onChange={(e) => setMaxPrice(Number(e.target.value))}
               className="w-full accent-[#E05A47]"
+            />
+            <input
+              type="number"
+              min="0"
+              max="1000"
+              step="10"
+              value={maxPrice}
+              onChange={(e) => {
+                const value = Number(e.target.value);
+                if (Number.isFinite(value)) setMaxPrice(Math.min(1000, Math.max(0, value)));
+              }}
+              aria-label="Enter maximum tutor hourly rate in ETB"
+              className="mt-2 w-full rounded-lg border border-[#CBD5E1] bg-white px-2 py-1.5 text-xs font-semibold text-[#0A1428]"
             />
           </div>
 
@@ -137,9 +130,7 @@ useEffect(() => {
               onChange={(e) => setSelectedMode(e.target.value)}
               className="w-full px-3 py-2.5 rounded-xl bg-[#FAF7F2] border border-[#CBD5E1] text-xs font-semibold text-[#0A1428] focus:outline-none focus:border-[#E05A47]"
             >
-              <option value="All">Both Online & In-Person</option>
-              <option value="In-Person">In-Person Home Visits (Addis)</option>
-              <option value="Online">Online Video Classes</option>
+            <option value="Online">Online only</option>
             </select>
           </div>
 
@@ -149,8 +140,8 @@ useEffect(() => {
               onClick={() => {
                 setSearchTerm('');
                 setSelectedSubject('All');
-                setMaxPrice(600);
-                setSelectedMode('All');
+                setMaxPrice(1000);
+                setSelectedMode('Online');
               }}
               className="w-full py-2.5 rounded-xl border border-[#CBD5E1] text-xs font-bold text-[#64748B] hover:text-[#E05A47] hover:border-[#E05A47] transition-colors"
             >
@@ -163,23 +154,16 @@ useEffect(() => {
       </div>
 
       {/* Tutor Grid List */}
-      {isLoading ? (
-  <div role="status" className="text-center py-12">
-    Loading tutors...
-  </div>
-) : loadError ? (
-  <div role="alert" className="text-center py-12 text-red-600">
-    {loadError}
-  </div>
-) : filteredTutors.length > 0 ? (
+      {filteredTutors.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredTutors.map((tutor) => (
             <TutorCard
               key={tutor.id}
               tutor={tutor}
               onSelectTutor={onSelectTutor}
+              onViewTutor={onViewTutor}
+              isSelected={selectedTutorIds.includes(tutor.id)}
               dark={false}
-              currency={currency}
             />
           ))}
         </div>
@@ -201,9 +185,9 @@ useEffect(() => {
           <button
             onClick={() => {
               setSearchTerm('');
-              setSelectedMode('All');
+              setSelectedMode('Online');
               setSelectedSubject('All');
-              setMaxPrice(600);
+              setMaxPrice(1000);
             }}
             className="btn btn-primary btn-sm font-bold"
           >

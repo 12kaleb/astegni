@@ -1,420 +1,1457 @@
 'use client';
 
-import React, { useState,useEffect } from 'react';
-import { Bell, ArrowRight, Star, Video, CheckCircle2, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
+import { SUBJECT_GROUPS } from '../../lib/subject-catalog';
+import {
+  Bell,
+  ArrowRight,
+  Star,
+  Video,
+  CheckCircle2,
+  Circle,
+  ChevronRight,
+  BookOpen,
+  Clock,
+  Calendar,
+  Check,
+  Plus,
+  MessageSquare,
+  Send,
+  Sparkles,
+  Filter,
+  X,
+  ExternalLink,
+  Award,
+  FileText,
+  BarChart3,
+  User,
+  ShieldCheck,
+  LayoutDashboard,
+  CheckCheck
+} from 'lucide-react';
 
-export default function StudentDashboard({ user,onFindTutor, onJoinLesson }) {
-  const [selectedProgressWeek, setSelectedProgressWeek] = useState('W5');
+function formatLessonTime(value, timeZone, options) {
+  const zone = timeZone || 'Africa/Addis_Ababa';
+  return `${new Date(value).toLocaleString([], { ...options, timeZone: zone })} (${zone})`;
+}
+
+
+export default function StudentDashboard({
+  user,
+  onFindTutor = () => {},
+  onSelectTutor = () => {},
+  selectedTutorIds = [],
+  onJoinLesson = () => {},
+}) {
+  // Navigation tabs within student dashboard
+  const [activeSubTab, setActiveSubTab] = useState('overview'); // 'overview' | 'schedule' | 'assignments' | 'subjects' | 'messages'
+
+  // Data states
   const [nextLesson, setNextLesson] = useState(null);
-const [lessonLoading, setLessonLoading] = useState(true);
-const [lessonError, setLessonError] = useState('');
-const [recommendedTutors, setRecommendedTutors] = useState([]);
-const [assignments, setAssignments] = useState([]);
-const [assignmentsLoading, setAssignmentsLoading] = useState(true);
-const [assignmentsError, setAssignmentsError] = useState('');
-const [subjects, setSubjects] = useState([]);
-const [subjectsLoading, setSubjectsLoading] = useState(true);
-const [subjectsError, setSubjectsError] = useState('');
+  const [allLessons, setAllLessons] = useState([]);
+  const [lessonLoading, setLessonLoading] = useState(true);
+  const [lessonError, setLessonError] = useState('');
+  const [payingLessonId, setPayingLessonId] = useState(null);
+  const [paymentError, setPaymentError] = useState('');
+  const [reviewableLessons, setReviewableLessons] = useState([]);
+  const [reviewDrafts, setReviewDrafts] = useState({});
+  const [reviewMessage, setReviewMessage] = useState('');
 
-useEffect(() => {
-  let isActive = true;
+  const [recommendedTutors, setRecommendedTutors] = useState([]);
+  const [maxTutorRate, setMaxTutorRate] = useState(1000);
+  const affordableRecommendedTutors = recommendedTutors
+    .filter((tutor) => {
+      if (tutor.hourlyRateETB == null) return true;
+      const rate = Number(tutor.hourlyRateETB);
+      return Number.isFinite(rate) && rate >= 0 && rate <= maxTutorRate;
+    })
+    .slice(0, 3);
 
-  async function loadNextLesson() {
+  const [assignments, setAssignments] = useState([]);
+  const [assignmentsLoading, setAssignmentsLoading] = useState(true);
+  const [assignmentsError, setAssignmentsError] = useState('');
+
+  const [subjects, setSubjects] = useState([]);
+  const [subjectsLoading, setSubjectsLoading] = useState(true);
+  const [subjectsError, setSubjectsError] = useState('');
+
+  const [activity, setActivity] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(true);
+  const [activityError, setActivityError] = useState('');
+
+  // Notifications dropdown state
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  // Modals state
+  const [selectedAssignmentModal, setSelectedAssignmentModal] = useState(null);
+  const [addSubjectModalOpen, setAddSubjectModalOpen] = useState(false);
+  const [newSubjectName, setNewSubjectName] = useState('');
+  const [newSubjectTopic, setNewSubjectTopic] = useState('');
+
+  const [addTaskModalOpen, setAddTaskModalOpen] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskDueDate, setNewTaskDueDate] = useState('');
+
+  async function startLessonPayment(lesson, currency) {
+    setPayingLessonId(lesson.id);
+    setPaymentError('');
     try {
-      const response = await fetch('/api/students/lessons', {
-        cache: 'no-store',
+      const response = await fetch('/api/payments/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lessonId: lesson.id, currency }),
       });
       const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Could not load your next lesson.');
-      }
-
-      if (isActive) setNextLesson(result.lesson);
+      if (!response.ok) throw new Error(result.error || 'Unable to start checkout.');
+      window.location.assign(result.payment.checkoutUrl);
     } catch (error) {
-      if (isActive) setLessonError(error.message);
-    } finally {
-      if (isActive) setLessonLoading(false);
+      setPaymentError(error.message);
+      setPayingLessonId(null);
     }
   }
 
-  loadNextLesson();
+  async function submitLessonReview(lessonId) {
+    const draft = reviewDrafts[lessonId] || { rating: 5, comment: '' };
+    setReviewMessage('');
+    try {
+      const response = await fetch(`/api/lessons/${encodeURIComponent(lessonId)}/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Unable to submit review.');
+      setReviewableLessons((lessons) => lessons.filter((lesson) => lesson.id !== lessonId));
+      setReviewMessage('Your review was submitted.');
+    } catch (error) {
+      setReviewMessage(error.message);
+    }
+  }
 
-  return () => {
-    isActive = false;
-  };
-}, []);
+  // 1. Fetch Next Lesson
+  useEffect(() => {
+    let isActive = true;
 
-  const weeks = [
-    { label: 'W1', value: 45 },
-    { label: 'W2', value: 58 },
-    { label: 'W3', value: 68 },
-    { label: 'W4', value: 78 },
-    { label: 'W5', value: 92 },
-    { label: 'W6', value: 35 },
-  ];
+    async function loadNextLesson() {
+      try {
+        const response = await fetch('/api/students/lessons', {
+          cache: 'no-store',
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Could not load your next lesson.');
+        }
+
+        if (isActive) {
+          setNextLesson(result.lesson || null);
+          setAllLessons(Array.isArray(result.lessons) ? result.lessons : result.lesson ? [result.lesson] : []);
+        }
+      } catch (error) {
+        if (isActive) setLessonError(error.message || 'Could not load your lessons.');
+      } finally {
+        if (isActive) setLessonLoading(false);
+      }
+    }
+
+    loadNextLesson();
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isActive = true;
-  
+    fetch('/api/students/reviews', { cache: 'no-store' })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Unable to load reviews.');
+        if (isActive) setReviewableLessons(Array.isArray(result.lessons) ? result.lessons : []);
+      })
+      .catch((error) => { if (isActive) setReviewMessage(error.message); });
+    return () => { isActive = false; };
+  }, []);
+
+  // 2. Fetch Assignments
+  useEffect(() => {
+    let isActive = true;
+
     async function loadAssignments() {
       try {
         const response = await fetch('/api/students/assignments', {
           cache: 'no-store',
         });
         const result = await response.json();
-  
+
         if (!response.ok) {
           throw new Error(result.error || 'Could not load assignments.');
         }
-  
-        if (isActive) setAssignments(result.assignments);
+
+        if (isActive) setAssignments(Array.isArray(result.assignments) ? result.assignments : []);
       } catch (error) {
-        if (isActive) setAssignmentsError(error.message);
+        if (isActive) setAssignmentsError(error.message || 'Could not load assignments.');
       } finally {
         if (isActive) setAssignmentsLoading(false);
       }
     }
-  
+
     loadAssignments();
-  
     return () => {
       isActive = false;
     };
   }, []);
 
+  // 3. Fetch Subjects
   useEffect(() => {
     let isActive = true;
-  
+
     async function loadSubjects() {
       try {
         const response = await fetch('/api/students/subjects', {
           cache: 'no-store',
         });
         const result = await response.json();
-  
+
         if (!response.ok) {
           throw new Error(result.error || 'Could not load subjects.');
         }
-  
-        if (isActive) setSubjects(result.subjects);
+
+        if (isActive) setSubjects(Array.isArray(result.subjects) ? result.subjects : []);
       } catch (error) {
-        if (isActive) setSubjectsError(error.message);
+        if (isActive) setSubjectsError(error.message || 'Could not load subjects.');
       } finally {
         if (isActive) setSubjectsLoading(false);
       }
     }
-  
+
     loadSubjects();
-  
     return () => {
       isActive = false;
     };
   }, []);
 
+  // 4. Fetch Recommended Tutors
   useEffect(() => {
     let cancelled = false;
-  
+
     async function loadTutors() {
       try {
         const response = await fetch('/api/tutors', { cache: 'no-store' });
-        if (!response.ok) return;
-  
-        const tutors = await response.json();
-        if (!cancelled) setRecommendedTutors(tutors.slice(0, 2));
-      } catch {
-        // Leave the recommendations empty if the request fails.
+        if (!response.ok) {
+          if (!cancelled) setRecommendedTutors([]);
+          return;
+        }
+
+        const result = await response.json();
+        const tutors = result.tutors;
+        if (!cancelled) {
+          if (Array.isArray(tutors) && tutors.length > 0) {
+            setRecommendedTutors(tutors);
+          } else {
+            setRecommendedTutors([]);
+          }
+        }
+      } catch (error) {
+        console.error('[student dashboard] tutor recommendations failed:', error);
+        if (!cancelled) setRecommendedTutors([]);
       }
     }
-  
+
     loadTutors();
-  
     return () => {
       cancelled = true;
     };
   }, []);
 
+  // 5. Fetch Recent Activity
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadActivity() {
+      try {
+        const response = await fetch('/api/students/activity', {
+          cache: 'no-store',
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Could not load recent activity.');
+        }
+
+        if (isActive) setActivity(Array.isArray(result.activity) ? result.activity : []);
+      } catch (error) {
+        if (isActive) setActivityError(error.message || 'Could not load recent activity.');
+      } finally {
+        if (isActive) setActivityLoading(false);
+      }
+    }
+
+    loadActivity();
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  // Calculate overall progress across subjects
+  const overallProgress = subjects.length
+    ? Math.round(
+        subjects.reduce((total, subject) => total + (subject.progressPct || 0), 0) /
+          subjects.length
+      )
+    : 0;
+
+  // Toggle Assignment completion status
+  const handleToggleAssignment = async (item) => {
+    const updatedStatus = item.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
+    try {
+      const response = await fetch('/api/students/assignments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, status: updatedStatus }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not update assignment.');
+      setAssignments((prev) => prev.map((a) => a.id === item.id ? { ...a, ...result.assignment } : a));
+    } catch (error) {
+      setAssignmentsError(error.message || 'Could not update assignment.');
+    }
+  };
+
+  // Add new subject handler
+  const handleAddSubject = async (e) => {
+    e.preventDefault();
+    if (!newSubjectName.trim()) return;
+
+    try {
+      const response = await fetch('/api/students/subjects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subjectName: newSubjectName,
+          topic: newSubjectTopic,
+          progressPct: 0,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not add subject.');
+      setSubjects((prev) => [...prev, result.subject]);
+      setAddSubjectModalOpen(false);
+      setNewSubjectName('');
+      setNewSubjectTopic('');
+    } catch (error) {
+      setSubjectsError(error.message || 'Could not add subject.');
+    }
+  };
+
+  // Add new task / assignment handler
+  const handleAddTask = async (e) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim()) return;
+
+    try {
+      const response = await fetch('/api/students/assignments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newTaskTitle,
+          dueDate: newTaskDueDate || undefined,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not add assignment.');
+      setAssignments((prev) => [result.assignment, ...prev]);
+      setNewTaskTitle('');
+      setNewTaskDueDate('');
+      setAddTaskModalOpen(false);
+    } catch (error) {
+      setAssignmentsError(error.message || 'Could not add assignment.');
+    }
+  };
+
+  const studentFirstName = user?.name?.split(/\s+/)[0] || 'there';
 
   return (
-    <div className="space-y-8 animate-fadeIn max-w-[1240px] mx-auto">
-      {/* Top Greeting & Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-3xl sm:text-4xl text-[#182238] font-normal tracking-tight">
-          Welcome back, {user?.name?.split(/\s+/)[0] || 'there'}.
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-          You&apos;re building momentum — keep going.
-          </p>
-          <div className="mt-3 flex items-center gap-2">
-            <button className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:border-slate-300 transition-colors">
-              <Bell className="w-4 h-4" />
-            </button>
+    <div className="space-y-8 animate-fadeIn max-w-[1240px] mx-auto pb-12">
+      {/* 1. TOP HEADER & GREETING BAR */}
+      <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 sm:p-8 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E05A47]/10 text-[#E05A47] font-bold text-xs">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Student Learning Portal</span>
           </div>
+
+          <h1 className="font-serif text-3xl sm:text-4xl text-[#182238] font-normal tracking-tight">
+            Welcome back, {studentFirstName}.
+          </h1>
+          <p className="text-sm text-slate-500">
+            Your learning activity and upcoming lessons are shown below.
+          </p>
         </div>
 
-        <div>
+        {/* Action Controls */}
+        <div className="flex items-center gap-3 relative">
+          {/* Notifications Dropdown Toggle */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setNotificationsOpen(!notificationsOpen);
+              }}
+              className="w-10 h-10 rounded-full border border-slate-200 bg-[#FAF7F2] flex items-center justify-center text-slate-600 hover:text-[#0A1428] hover:border-slate-300 transition-colors relative"
+              aria-label="Notifications"
+            >
+              <Bell className="w-4 h-4" />
+            </button>
+
+            {/* Notifications Dropdown Menu */}
+            {notificationsOpen && (
+              <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl border border-[#EAE6DF] shadow-xl p-4 z-50 space-y-3 animate-fadeIn">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h4 className="text-xs font-bold text-[#0A1428] uppercase tracking-wider">
+                    Notifications
+                  </h4>
+                  <button
+                    onClick={() => setNotificationsOpen(false)}
+                    className="text-slate-400 hover:text-slate-600 p-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="space-y-2.5 max-h-64 overflow-y-auto">
+                  <p className="p-2.5 text-xs text-slate-500">Notifications are not available yet.</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Find a Tutor Button */}
           <button
             onClick={onFindTutor}
-            className="bg-[#E85D4E] hover:bg-[#D54A3B] text-white px-6 py-2.5 rounded-full font-medium text-sm transition-all shadow-sm hover:shadow active:scale-95"
+            className="btn btn-primary px-6 py-2.5 text-xs font-bold shadow-md shadow-[#E05A47]/20 flex items-center gap-1.5"
           >
-            Find a tutor
+            <User className="w-3.5 h-3.5" />
+            <span>Find a Tutor</span>
           </button>
         </div>
       </div>
 
-      {/* Main Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left Column (8 cols) */}
-        <div className="lg:col-span-8 space-y-6">
-          
-          {/* Next Lesson Card */}
-          <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 sm:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-5">
-  {lessonLoading ? (
-    <p className="text-sm text-slate-500">Loading your next lesson…</p>
-  ) : lessonError ? (
-    <p role="alert" className="text-sm text-red-600">{lessonError}</p>
-  ) : !nextLesson ? (
-    <p className="text-sm text-slate-500">No upcoming lessons booked.</p>
-  ) : (
-    <>
-      <div className="flex items-center gap-2.5">
-        <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
-          Next lesson · {new Date(nextLesson.scheduledAt).toLocaleString([], {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-          })}
-        </span>
-        <span className="bg-[#E8F5E9] text-[#2E7D32] px-2.5 py-0.5 rounded-full text-[11px] font-semibold">
-          {nextLesson.status === 'PENDING' ? 'Pending' : 'Confirmed'}
-        </span>
+      {(lessonError || assignmentsError || subjectsError || activityError) && (
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+          {[lessonError, assignmentsError, subjectsError, activityError].filter(Boolean).join(' ')}
+        </div>
+      )}
+
+      {/* 2. SUB-NAVIGATION TABS */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-[#EAE6DF] scrollbar-none">
+        <button
+          onClick={() => setActiveSubTab('overview')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+            activeSubTab === 'overview'
+              ? 'bg-[#0A1428] text-white shadow-xs'
+              : 'text-slate-600 hover:text-[#0A1428] hover:bg-white/60'
+          }`}
+        >
+          <LayoutDashboard className="w-3.5 h-3.5" />
+          <span>Dashboard Overview</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('schedule')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+            activeSubTab === 'schedule'
+              ? 'bg-[#0A1428] text-white shadow-xs'
+              : 'text-slate-600 hover:text-[#0A1428] hover:bg-white/60'
+          }`}
+        >
+          <Calendar className="w-3.5 h-3.5" />
+          <span>Scheduled Lessons</span>
+          <span className="ml-1 px-1.5 py-0.2 rounded-full bg-[#E05A47] text-white text-[10px]">
+            {allLessons.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('assignments')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+            activeSubTab === 'assignments'
+              ? 'bg-[#0A1428] text-white shadow-xs'
+              : 'text-slate-600 hover:text-[#0A1428] hover:bg-white/60'
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>Assignments & Tests</span>
+          <span className="ml-1 px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-800 text-[10px]">
+            {assignments.filter((a) => a.status === 'PENDING').length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('subjects')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+            activeSubTab === 'subjects'
+              ? 'bg-[#0A1428] text-white shadow-xs'
+              : 'text-slate-600 hover:text-[#0A1428] hover:bg-white/60'
+          }`}
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          <span>Subjects & Progress</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('messages')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+            activeSubTab === 'messages'
+              ? 'bg-[#0A1428] text-white shadow-xs'
+              : 'text-slate-600 hover:text-[#0A1428] hover:bg-white/60'
+          }`}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          <span>Tutor Messages</span>
+        </button>
       </div>
 
-      <div className="w-10 h-10 rounded-full bg-[#FCE8E6] text-[#C5221F] flex items-center justify-center font-bold text-xs tracking-wider">
-        {nextLesson.tutor.name
-          .split(/\s+/)
-          .filter(Boolean)
-          .slice(0, 2)
-          .map((part) => part[0])
-          .join('')
-          .toUpperCase()}
+      {/* 3. METRIC QUICK STATS SUMMARY TILES */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl border border-[#EAE6DF] p-4 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+            <BookOpen className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[11px] text-slate-500 font-medium block">Active Subjects</span>
+            <span className="text-xl font-bold text-[#0A1428]">{subjects.length} Enrolled</span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-[#EAE6DF] p-4 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+            <Clock className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[11px] text-slate-500 font-medium block">Tracked Study Hours</span>
+            <span className="text-xl font-bold text-[#0A1428]">Not tracked</span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-[#EAE6DF] p-4 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-rose-50 text-[#E05A47] flex items-center justify-center font-bold">
+            <Calendar className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[11px] text-slate-500 font-medium block">Upcoming Lessons</span>
+            <span className="text-xl font-bold text-[#0A1428]">
+              {allLessons.length} Scheduled
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-[#EAE6DF] p-4 shadow-sm flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+            <Award className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[11px] text-slate-500 font-medium block">Subject Progress</span>
+            <span className="text-xl font-bold text-emerald-600">{subjects.length ? `${overallProgress}% Average` : 'No subjects yet'}</span>
+          </div>
+        </div>
       </div>
 
-      <div>
-        <h2 className="font-serif text-2xl text-[#182238] font-normal">
-          {nextLesson.title}
-        </h2>
-        <p className="text-sm text-slate-500 mt-0.5">
-          {nextLesson.topic || 'Lesson'} with {nextLesson.tutor.name} ·{' '}
-          {nextLesson.durationMins} min
-        </p>
-      </div>
+      {/* 4. TAB VIEW 1: OVERVIEW (Main Figma Dashboard Layout) */}
+      {activeSubTab === 'overview' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* LEFT 8 COLUMNS */}
+          <div className="lg:col-span-8 space-y-6">
+            {/* A. NEXT UPCOMING LESSON CARD (Figma Hero Banner) */}
+            <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 sm:p-7 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-5 relative overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
+                    Next lesson ·{' '}
+                    {lessonLoading ? 'Loading lesson…' : nextLesson
+                      ? formatLessonTime(nextLesson.scheduledAt, user?.timeZone, {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })
+                      : 'No upcoming lesson'}
+                  </span>
+                </div>
 
-      <button
-        disabled={!nextLesson.meetingUrl}
-        onClick={() => onJoinLesson(nextLesson)}
-        className="bg-[#E85D4E] hover:bg-[#D54A3B] disabled:opacity-50 text-white px-6 py-2.5 rounded-full font-medium text-sm transition-all"
-      >
-        {nextLesson.meetingUrl ? 'Join lesson' : 'Meeting link pending'}
-      </button>
-    </>
-  )}
-</div>
+                {nextLesson && <span className="bg-[#E8F5E9] text-[#2E7D32] px-3 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-1"><Check className="w-3 h-3" /><span>{nextLesson.status}</span></span>}
+              </div>
 
-          {/* Middle Row: Learning Progress & Assignments */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* Learning progress Card */}
-            <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-serif text-xl text-[#182238] font-normal">
-                    Learning progress
-                  </h3>
-                  <button className="text-xs font-semibold text-[#E85D4E] hover:underline flex items-center gap-0.5">
+              {/* Tutor info & Lesson subject */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+                <div className="flex items-center gap-3.5">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${nextLesson ? 'bg-slate-100' : 'bg-[#E05A47]/10'}`}>
+                    {nextLesson ? <User className="w-5 h-5 text-slate-400" /> : <Calendar className="w-5 h-5 text-[#E05A47]" />}
+                  </div>
+                  <div>
+                    <h2 className="font-serif text-2xl text-[#182238] font-normal leading-tight">
+                      {lessonLoading ? 'Loading your next lesson…' : nextLesson?.title || 'No upcoming lesson'}
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
+                      <span className="font-semibold text-[#0A1428]">
+                        {nextLesson?.tutor?.name || 'Tutor not assigned'}
+                      </span>
+                      {nextLesson?.topic && <><span>·</span><span>{nextLesson.topic}</span></>}
+                      {nextLesson?.durationMins != null && <span>·</span>}
+                      {nextLesson?.durationMins != null && <span>{nextLesson.durationMins} mins</span>}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <button
+                  onClick={() => nextLesson ? onJoinLesson(nextLesson) : onFindTutor()}
+                  disabled={Boolean(nextLesson && !nextLesson.meetingUrl)}
+                  className="btn btn-primary px-6 py-2.5 rounded-full text-xs font-bold shadow-md shadow-[#E05A47]/20 flex items-center gap-2"
+                >
+                  {nextLesson ? <Video className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                  <span>{nextLesson ? (nextLesson.status === 'PENDING' ? 'Awaiting tutor confirmation' : nextLesson.meetingUrl ? 'Join Video Classroom' : 'Meeting link unavailable') : 'Find a tutor'}</span>
+                </button>
+
+                {nextLesson && <button
+                  onClick={() => setActiveSubTab('messages')}
+                  className="btn btn-outline px-4 py-2.5 rounded-full text-xs font-bold text-slate-700 hover:text-[#E05A47] flex items-center gap-1.5"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Message Tutor</span>
+                </button>}
+
+                <button
+                  onClick={() => setActiveSubTab('schedule')}
+                  className="text-xs font-semibold text-slate-500 hover:text-[#0A1428] ml-auto transition-colors"
+                >
+                  View full schedule →
+                </button>
+              </div>
+            </div>
+
+            {/* B. MIDDLE ROW: LEARNING PROGRESS & ASSIGNMENTS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Learning Progress & Weekly Velocity Card */}
+              <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-serif text-xl text-[#182238] font-normal">
+                      Learning progress
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Study hours & consistency</p>
+                  </div>
+                  <button
+                    onClick={() => setActiveSubTab('subjects')}
+                    className="text-xs font-semibold text-[#E05A47] hover:underline flex items-center gap-0.5"
+                  >
                     View report <ArrowRight className="w-3 h-3 ml-0.5" />
+                  </button>
+                </div>
+
+                {/* Overall summary bar */}
+                <div className="space-y-1.5 bg-[#FAF7F2] p-3 rounded-2xl border border-[#EAE6DF]">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-600 font-medium">Average across subjects:</span>
+                    <span className="font-bold text-[#0A1428]">{subjects.length ? `${overallProgress}%` : '—'}</span>
+                  </div>
+                  <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#182238] rounded-full transition-all duration-700"
+                      style={{ width: `${overallProgress}%` }}
+                    />
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-500">Weekly study history is not tracked yet.</p>
+              </div>
+              {/* Assignments / Tasks Card */}
+              <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-serif text-xl text-[#182238] font-normal">Assignments</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Homework & review tasks</p>
+                  </div>
+                  <button
+                    onClick={() => setActiveSubTab('assignments')}
+                    className="text-xs font-semibold text-[#E05A47] hover:underline flex items-center gap-0.5"
+                  >
+                    See all ({assignments.length}) <ArrowRight className="w-3 h-3 ml-0.5" />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {assignmentsLoading ? (
+                    <p className="text-xs text-slate-500">Loading assignments…</p>
+                  ) : assignments.length === 0 ? (
+                    <p className="text-xs text-slate-500">No assignments assigned yet.</p>
+                  ) : (
+                    assignments.slice(0, 3).map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-start justify-between gap-3 p-2.5 rounded-2xl hover:bg-[#FAF7F2] transition-colors group cursor-pointer border border-transparent hover:border-[#EAE6DF]"
+                        onClick={() => setSelectedAssignmentModal(item)}
+                      >
+                        <div className="flex items-start gap-2.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleAssignment(item);
+                            }}
+                            className="mt-0.5 text-slate-400 hover:text-emerald-600 transition-colors"
+                          >
+                            {item.status === 'COMPLETED' ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 fill-emerald-100" />
+                            ) : (
+                              <Circle className="w-4 h-4" />
+                            )}
+                          </button>
+                          <div>
+                            <h4
+                              className={`text-xs font-bold leading-snug transition-colors ${
+                                item.status === 'COMPLETED'
+                                  ? 'line-through text-slate-400'
+                                  : 'text-[#0A1428] group-hover:text-[#E05A47]'
+                              }`}
+                            >
+                              {item.title}
+                            </h4>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              {item.status === 'COMPLETED' ? (
+                                <span className="text-emerald-600 font-semibold">Completed</span>
+                              ) : (
+                                `Due ${new Date(item.dueDate).toLocaleDateString([], {
+                                  weekday: 'short',
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}`
+                              )}
+                              {item.score !== null && item.score !== undefined && ` · ${item.score}/${item.maxScore || 10}`}
+                            </p>
+                          </div>
+                        </div>
+
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-600 mt-1 shrink-0" />
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setAddTaskModalOpen(true)}
+                  className="w-full py-2.5 rounded-xl border border-dashed border-slate-300 text-xs font-semibold text-slate-600 hover:text-[#E05A47] hover:border-[#E05A47] transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Self-Study Task</span>
+                </button>
+              </div>
+            </div>
+
+            {/* C. CURRENT SUBJECTS CARDS (Figma Distinct Color Themed Cards) */}
+            <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-serif text-xl text-[#182238] font-normal">
+                    Current subjects
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Course progress across your subjects
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setAddSubjectModalOpen(true)}
+                    className="btn btn-outline text-xs px-3 py-1.5 rounded-full font-bold text-slate-700 flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Add Subject</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveSubTab('subjects')}
+                    className="text-xs font-semibold text-[#E05A47] hover:underline flex items-center gap-0.5"
+                  >
+                    All subjects <ArrowRight className="w-3 h-3 ml-0.5" />
                   </button>
                 </div>
               </div>
 
-              {/* Progress Horizontal / Vertical Bars */}
-              <div className="space-y-3 pt-2">
-                {weeks.map((w) => (
-                  <div key={w.label} className="flex items-center gap-3">
-                    <span className="text-[11px] font-medium text-slate-400 w-6">{w.label}</span>
-                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                {subjectsLoading ? (
+                  <p className="text-xs text-slate-500">Loading subjects…</p>
+                ) : (
+                  subjects.map((subject, idx) => {
+                    const colorThemes = [
+                      {
+                        bg: 'bg-[#EBF3F9]',
+                        border: 'border-[#D6E6F2]',
+                        text: 'text-[#0284C7]',
+                        accent: 'bg-[#0284C7]',
+                      },
+                      {
+                        bg: 'bg-[#FDF2F4]',
+                        border: 'border-[#FBD5DC]',
+                        text: 'text-[#E11D48]',
+                        accent: 'bg-[#E11D48]',
+                      },
+                      {
+                        bg: 'bg-[#EDF7ED]',
+                        border: 'border-[#C8E6C9]',
+                        text: 'text-[#16A34A]',
+                        accent: 'bg-[#16A34A]',
+                      },
+                    ];
+                    const theme = colorThemes[idx % colorThemes.length];
+
+                    return (
                       <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          w.label === 'W5' ? 'bg-[#182238]' : 'bg-slate-300'
-                        }`}
-                        style={{ width: `${w.value}%` }}
+                        key={subject.id}
+                        className={`${theme.bg} ${theme.border} border rounded-2xl p-4 flex flex-col justify-between min-h-[140px] hover:shadow-sm transition-all`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-sm text-[#182238]">
+                              {subject.subjectName}
+                            </h4>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/80 text-slate-700">
+                              Active
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-600 mt-1 line-clamp-1">{subject.topic}</p>
+                        </div>
+
+                        <div className="mt-4 pt-2 border-t border-black/5">
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="text-[10px] uppercase font-bold text-slate-500">
+                              Progress
+                            </span>
+                            <span className="font-extrabold text-[#182238]">
+                              {subject.progressPct}%
+                            </span>
+                          </div>
+                          <div className="h-1.5 bg-black/10 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${theme.accent} rounded-full`}
+                              style={{ width: `${subject.progressPct}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT 4 COLUMNS: Recommended Tutors & Activity & Chat */}
+          <div className="lg:col-span-4 space-y-6">
+            {/* A. RECOMMENDED TUTORS CARD (Ethiopian Verified Tutors) */}
+            <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-serif text-xl text-[#182238] font-normal">
+                    Recommended tutors
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Top-rated Ethiopian mentors</p>
+                </div>
+                <button
+                  onClick={onFindTutor}
+                  className="text-xs font-semibold text-[#E05A47] hover:underline flex items-center gap-0.5"
+                >
+                  Browse <ArrowRight className="w-3 h-3 ml-0.5" />
+                </button>
+              </div>
+
+              <div className="rounded-xl bg-[#FAF7F2] px-3 py-2.5">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                  <label htmlFor="student-max-tutor-rate">Max hourly rate</label>
+                  <span className="text-[#E05A47]">{maxTutorRate.toLocaleString()} ETB</span>
+                </div>
+                <input
+                  id="student-max-tutor-rate"
+                  aria-label="Maximum tutor hourly rate in ETB"
+                  type="range"
+                  min="0"
+                  max="1000"
+                  step="50"
+                  value={maxTutorRate}
+                  onChange={(event) => setMaxTutorRate(Number(event.target.value))}
+                  className="mt-2 w-full accent-[#E05A47]"
+                />
+              </div>
+
+              <div className="space-y-3">
+                {affordableRecommendedTutors.map((tutor) => (
+                  <div
+                    key={tutor.id}
+                    onClick={() => onSelectTutor(tutor)}
+                    className="flex items-center justify-between p-2.5 rounded-2xl hover:bg-[#FAF7F2] transition-all border border-transparent hover:border-[#EAE6DF] cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Image
+                        src={tutor.avatar || '/tutor_female_1.jpg'}
+                        alt={tutor.name}
+                        width={48}
+                        height={48}
+                        className="w-10 h-10 rounded-xl object-cover ring-2 ring-slate-100 group-hover:scale-105 transition-transform"
+                        onError={(e) => {
+                          e.target.src = '/tutor_female_1.jpg';
+                        }}
                       />
+                      <div>
+                        <h4 className="text-xs font-bold text-[#182238] group-hover:text-[#E05A47] transition-colors flex items-center gap-1">
+                          <span>{tutor.name}</span>
+                          {selectedTutorIds.includes(tutor.id) && <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">SELECTED</span>}
+                          <CheckCircle2 className="w-3 h-3 text-emerald-500 fill-emerald-100" />
+                        </h4>
+                        <p className="text-[11px] text-slate-500">
+                          {tutor.subjects?.[0] || tutor.title || 'Tutor'} ·{' '}
+                          {tutor.rating != null && <span className="font-bold text-amber-500">★ {tutor.rating}</span>}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-xs font-bold text-[#E05A47] block">
+                        {tutor.hourlyRateETB != null ? `${tutor.hourlyRateETB} ETB` : 'Rate not provided'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">/hr</span>
+                    </div>
+                  </div>
+                ))}
+                {affordableRecommendedTutors.length === 0 && (
+                  <p className="text-xs text-slate-400 text-center py-3">
+                    No tutors are listed at or below {maxTutorRate.toLocaleString()} ETB per hour. Try raising your maximum rate.
+                  </p>
+                )}
+              </div>
+
+              <button
+                onClick={onFindTutor}
+                className="w-full btn btn-outline py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:text-[#E05A47]"
+              >
+                Browse All Verified Tutors
+              </button>
+            </div>
+
+            {/* B. RECENT ACTIVITY CARD */}
+            <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
+              <h3 className="font-serif text-xl text-[#182238] font-normal">Recent activity</h3>
+
+              <div className="space-y-3.5">
+                {activityLoading && <p className="text-xs text-slate-500">Loading activity…</p>}
+                {!activityLoading && activity.length === 0 && <p className="text-xs text-slate-500">No recent activity yet.</p>}
+                {activity.map((item) => (
+                  <div key={item.id} className="flex items-start gap-2.5 text-xs">
+                    <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 mt-0.5">
+                      {item.type === 'lesson' ? (
+                        <Video className="w-3 h-3 text-[#E05A47]" />
+                      ) : (
+                        <FileText className="w-3 h-3 text-blue-600" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-[#182238] leading-snug">{item.title}</p>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        {new Date(item.createdAt).toLocaleDateString([], {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}
+                      </span>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      )}
 
-            {/* Assignments Card */}
-            <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-5">
-                  <h3 className="font-serif text-xl text-[#182238] font-normal">
-                    Assignments
-                  </h3>
-                  <button className="text-xs font-semibold text-[#E85D4E] hover:underline flex items-center gap-0.5">
-                    See all <ArrowRight className="w-3 h-3 ml-0.5" />
+      {/* 5. TAB VIEW 2: SCHEDULED LESSONS & TIMETABLE */}
+      {activeSubTab === 'schedule' && (
+        <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 sm:p-8 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAE6DF] pb-5">
+            <div>
+              <h2 className="font-serif text-2xl text-[#0A1428] font-normal">
+                Scheduled Lessons & Classrooms
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Your live 1-on-1 tutoring sessions across Addis Ababa time (EAT).
+              </p>
+            </div>
+            <button
+              onClick={onFindTutor}
+              className="btn btn-primary text-xs font-bold px-5 py-2.5 rounded-full"
+            >
+              + Book Another Session
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {paymentError && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-xs text-rose-700">{paymentError}</p>}
+            {lessonLoading && <p className="text-sm text-slate-500">Loading lessons…</p>}
+            {!lessonLoading && allLessons.length === 0 && <p className="text-sm text-slate-500">No upcoming lessons scheduled.</p>}
+            {allLessons.map((lesson) => (
+              <div
+                key={lesson.id}
+                className="p-5 rounded-2xl bg-[#FAF7F2] border border-[#EAE6DF] flex flex-col md:flex-row md:items-center justify-between gap-4 hover:shadow-sm transition-all"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-white border border-[#EAE6DF] overflow-hidden shrink-0">
+                    <Image
+                      src={lesson.tutor?.avatarUrl || '/tutor_female_1.jpg'}
+                      alt={lesson.tutor?.name || 'Tutor'}
+                      width={48}
+                      height={48}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-[#0A1428]">{lesson.title}</span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          lesson.status === 'CONFIRMED'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        {lesson.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600">
+                      Tutor: <strong className="text-[#0A1428]">{lesson.tutor?.name}</strong> ·{' '}
+                      {lesson.topic}
+                    </p>
+                    <p className="text-xs text-slate-400 flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 text-[#E05A47]" />
+                      <span>
+                        {formatLessonTime(lesson.scheduledAt, user?.timeZone, {
+                          weekday: 'long',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}{' '}
+                        ({lesson.durationMins} mins)
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {lesson.payment?.status === 'PAID' ? (
+                    <span className="text-[10px] font-bold text-emerald-700">Paid in {lesson.payment.currency}</span>
+                  ) : lesson.payment?.status === 'PENDING' && lesson.payment.checkoutUrl ? (
+                    <a href={lesson.payment.checkoutUrl} className="btn btn-outline text-xs px-3 py-2 font-bold">Resume checkout · {lesson.payment.currency}</a>
+                  ) : lesson.status === 'CONFIRMED' && ['ETB', 'USD'].map((currency) => {
+                    const rate = currency === 'ETB' ? lesson.tutor?.tutorProfile?.hourlyRateETB : lesson.tutor?.tutorProfile?.hourlyRateUSD;
+                    if (!rate) return null;
+                    const amount = rate * lesson.durationMins / 60;
+                    const priceLabel = currency === 'ETB' ? `${amount.toLocaleString()} ETB` : `$${amount.toFixed(2)}`;
+                    return (
+                      <button key={currency} disabled={payingLessonId === lesson.id || lesson.payment?.status === 'PENDING'} onClick={() => startLessonPayment(lesson, currency)} className="btn btn-outline text-xs px-3 py-2 font-bold disabled:opacity-50">
+                        {payingLessonId === lesson.id ? 'Starting…' : lesson.payment?.status === 'PENDING' ? `Checkout in ${lesson.payment.currency}` : `Pay ${priceLabel}`}
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() =>
+                      lesson.meetingUrl
+                        ? onJoinLesson(lesson)
+                      : undefined
+                    }
+                    disabled={!lesson.meetingUrl}
+                    className="btn btn-primary text-xs px-4 py-2 font-bold flex items-center gap-1.5"
+                  >
+                    <Video className="w-3.5 h-3.5" />
+                    <span>Join Room</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveSubTab('messages');
+                    }}
+                    className="btn btn-outline text-xs px-3 py-2 font-bold text-slate-700"
+                  >
+                    Chat
                   </button>
                 </div>
-
-                <div className="space-y-4">
-                {assignmentsLoading ? (
-  <p className="text-sm text-slate-500">Loading assignments…</p>
-) : assignmentsError ? (
-  <p role="alert" className="text-sm text-red-600">{assignmentsError}</p>
-) : assignments.length === 0 ? (
-  <p className="text-sm text-slate-500">No assignments yet.</p>
-) : (
-  assignments.map((item) => (
-    <div key={item.id} className="flex items-start gap-3">
-      <span className="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 bg-[#E85D4E]" />
-      <div>
-        <h4 className="text-sm font-semibold text-[#182238]">{item.title}</h4>
-        <p className="text-xs text-slate-400 mt-0.5">
-          {item.status === 'PENDING' ? 'Due ' : ''}
-          {new Date(item.dueDate).toLocaleDateString([], {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-          })}
-          {item.status !== 'PENDING' ? ` · ${item.status.toLowerCase()}` : ''}
-        </p>
-      </div>
-    </div>
-  ))
-)}
-                </div>
               </div>
-            </div>
-
+            ))}
           </div>
 
-          {/* Current Subjects Card */}
-          <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-serif text-xl text-[#182238] font-normal">
-                Current subjects
-              </h3>
-              <button className="text-xs font-semibold text-[#E85D4E] hover:underline flex items-center gap-0.5">
-                All subjects <ArrowRight className="w-3 h-3 ml-0.5" />
-              </button>
+          <section className="border-t border-[#EAE6DF] pt-6 space-y-4">
+            <div>
+              <h3 className="font-bold text-lg text-[#0A1428]">Review completed lessons</h3>
+              <p className="text-xs text-slate-500 mt-1">Share feedback after a lesson is marked complete.</p>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
-            {subjectsLoading ? (
-  <p className="text-sm text-slate-500">Loading subjects…</p>
-) : subjectsError ? (
-  <p role="alert" className="text-sm text-red-600">{subjectsError}</p>
-) : subjects.length === 0 ? (
-  <p className="text-sm text-slate-500">No subjects yet.</p>
-) : (
-  subjects.map((subject) => (
-    <div
-      key={subject.id}
-      className="bg-[#EBF3F9] border-[#D6E6F2] border rounded-2xl p-4 flex flex-col justify-between min-h-[120px]"
-    >
-      <div>
-        <h4 className="font-semibold text-sm text-[#182238]">
-          {subject.subjectName}
-        </h4>
-        <p className="text-xs text-slate-500 mt-0.5">{subject.topic}</p>
-      </div>
-      <div className="mt-4">
-        <span className="text-[10px] uppercase font-bold text-slate-500 block">
-          Course progress
-        </span>
-        <span className="text-sm font-bold text-[#182238]">
-          {subject.progressPct}%
-        </span>
-      </div>
-    </div>
-  ))
-)}
-            </div>
-          </div>
-
+            {reviewMessage && <p role="status" className="text-xs text-slate-600">{reviewMessage}</p>}
+            {reviewableLessons.length === 0 && <p className="text-sm text-slate-500">No completed lessons are waiting for a review.</p>}
+            {reviewableLessons.map((lesson) => {
+              const draft = reviewDrafts[lesson.id] || { rating: 5, comment: '' };
+              return (
+                <div key={lesson.id} className="rounded-2xl border border-slate-200 p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-bold text-[#0A1428]">{lesson.title}</p>
+                    <p className="text-xs text-slate-500">With {lesson.tutor.name} · {new Date(lesson.scheduledAt).toLocaleDateString()}</p>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">Rating
+                    <select value={draft.rating} onChange={(event) => setReviewDrafts((current) => ({ ...current, [lesson.id]: { ...draft, rating: Number(event.target.value) } }))} className="rounded-lg border border-slate-300 px-2 py-1">
+                      {[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating} / 5</option>)}
+                    </select>
+                  </label>
+                  <textarea value={draft.comment} onChange={(event) => setReviewDrafts((current) => ({ ...current, [lesson.id]: { ...draft, comment: event.target.value } }))} maxLength={2000} placeholder="Write an optional comment" className="w-full rounded-lg border border-slate-300 p-2 text-xs" />
+                  <button onClick={() => submitLessonReview(lesson.id)} className="btn btn-primary rounded-lg px-4 py-2 text-xs font-bold">Submit review</button>
+                </div>
+              );
+            })}
+          </section>
         </div>
+      )}
 
-        {/* Right Column (4 cols) */}
-        <div className="lg:col-span-4 space-y-6">
-          
-          {/* Recommended Tutors Card */}
-          <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-5">
-            <div className="flex items-center justify-between">
-              <h3 className="font-serif text-xl text-[#182238] font-normal">
-                Recommended tutors
-              </h3>
-              <button className="text-xs font-semibold text-[#E85D4E] hover:underline flex items-center gap-0.5">
-                Browse <ArrowRight className="w-3 h-3 ml-0.5" />
-              </button>
+      {/* 6. TAB VIEW 3: ASSIGNMENTS & HOMEWORK */}
+      {activeSubTab === 'assignments' && (
+        <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 sm:p-8 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAE6DF] pb-5">
+            <div>
+              <h2 className="font-serif text-2xl text-[#0A1428] font-normal">
+                Assignments & Practice Tests
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Track homework, exam practice sheets, and tutor grading feedback.
+              </p>
             </div>
+            <button
+              onClick={() => setAddTaskModalOpen(true)}
+              className="btn btn-primary text-xs font-bold px-5 py-2.5 rounded-full flex items-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add New Assignment / Task</span>
+            </button>
+          </div>
 
-            <div className="space-y-4">
-            {recommendedTutors.length === 0 ? (
-  <p className="text-sm text-slate-500">
-    Verified tutor recommendations will appear here when available.
-  </p>
-) : (
-              recommendedTutors.map((tutor) => (
-                <div
-                  key={tutor.id}
-                  className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-xs tracking-wider">
-                      {tutor.name.split(/\s+/)
-          .filter(Boolean)
-          .slice(0, 2)
-          .map((part) => part[0])
-          .join('')
-          .toUpperCase()}
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-[#182238]">{tutor.name}</h4>
-                      <p className="text-xs text-slate-500 flex items-center gap-1">
-                      {tutor.subjects[0] || tutor.title || 'Tutor'} · {tutor.rating.toFixed(1)}<span className="text-amber-500">★</span>
-                      </p>
-                    </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {assignmentsLoading && <p className="text-sm text-slate-500">Loading assignments…</p>}
+            {!assignmentsLoading && assignments.length === 0 && <p className="text-sm text-slate-500">No assignments yet.</p>}
+            {assignments.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => setSelectedAssignmentModal(item)}
+                className="p-5 rounded-2xl bg-[#FAF7F2] border border-[#EAE6DF] hover:border-[#E05A47]/60 hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between space-y-3"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white border border-[#EAE6DF] text-slate-600">
+                      {item.subject || 'Academic Task'}
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        item.status === 'COMPLETED'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-rose-100 text-rose-700'
+                      }`}
+                    >
+                      {item.status}
+                    </span>
                   </div>
 
-                  <button className="text-slate-400 hover:text-slate-700 transition-colors p-1">
-                    <ArrowRight className="w-4 h-4" />
-                    </button>
+                  <h3 className="font-bold text-sm text-[#0A1428] leading-tight">{item.title}</h3>
+                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                    {item.instructions || 'No instructions provided.'}
+                  </p>
                 </div>
-              )))}
+
+                <div className="flex items-center justify-between pt-3 border-t border-[#EAE6DF] text-xs">
+                  <div className="text-slate-500 flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-[#E05A47]" />
+                    <span>
+                      Due:{' '}
+                      {new Date(item.dueDate).toLocaleDateString([], {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleAssignment(item);
+                    }}
+                    className={`text-xs font-bold px-3 py-1 rounded-full transition-colors ${
+                      item.status === 'COMPLETED'
+                        ? 'bg-slate-200 text-slate-700'
+                        : 'bg-[#E05A47] text-white hover:bg-[#C94635]'
+                    }`}
+                  >
+                    {item.status === 'COMPLETED' ? 'Mark Pending' : 'Mark Completed'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 7. TAB VIEW 4: SUBJECTS & CURRICULUM PROGRESS */}
+      {activeSubTab === 'subjects' && (
+        <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 sm:p-8 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAE6DF] pb-5">
+            <div>
+              <h2 className="font-serif text-2xl text-[#0A1428] font-normal">
+                Subjects & Matric Syllabus
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Ethiopian Ministry of Education syllabus tracking & unit completion.
+              </p>
+            </div>
+            <button
+              onClick={() => setAddSubjectModalOpen(true)}
+              className="btn btn-primary text-xs font-bold px-5 py-2.5 rounded-full flex items-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Enroll New Subject</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {subjectsLoading && <p className="text-sm text-slate-500">Loading subjects…</p>}
+            {!subjectsLoading && subjects.length === 0 && <p className="text-sm text-slate-500">No subjects added yet.</p>}
+            {subjects.map((sub) => (
+              <div
+                key={sub.id}
+                className="bg-[#FAF7F2] p-6 rounded-3xl border border-[#EAE6DF] space-y-4 hover:shadow-md transition-all flex flex-col justify-between"
+              >
+                <div className="space-y-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#E05A47]/10 text-[#E05A47] flex items-center justify-center font-bold">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-[#0A1428]">{sub.subjectName}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">{sub.topic}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2 border-t border-[#EAE6DF]">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500 font-medium">Syllabus Progress</span>
+                    <span className="font-bold text-[#0A1428]">{sub.progressPct}%</span>
+                  </div>
+                  <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#E05A47] rounded-full"
+                      style={{ width: `${sub.progressPct}%` }}
+                    />
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 pt-1">
+                    Assigned Tutor: <strong className="text-slate-700">{sub.tutorName || 'Not assigned'}</strong>
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === 'messages' && (
+        <div className="rounded-3xl border border-[#EAE6DF] bg-white p-8 text-center text-sm text-slate-500">
+          Messaging is not available yet.
+        </div>
+      )}
+      {/* 9. ASSIGNMENT DETAILS MODAL */}
+      {selectedAssignmentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E8E2D8] space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <span className="badge badge-coral text-[10px]">
+                {selectedAssignmentModal.status}
+              </span>
+              <button
+                onClick={() => setSelectedAssignmentModal(null)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="font-serif text-2xl text-[#0A1428] font-normal leading-tight">
+                {selectedAssignmentModal.title}
+              </h3>
+              <p className="text-xs text-slate-500">
+                Due Date:{' '}
+                {new Date(selectedAssignmentModal.dueDate).toLocaleString([], {
+                  weekday: 'long',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </p>
+            </div>
+
+            <div className="bg-[#FAF7F2] p-4 rounded-2xl border border-[#EAE6DF] space-y-2">
+              <h4 className="text-xs font-bold text-[#0A1428] uppercase tracking-wider">
+                Tutor Instructions
+              </h4>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                {selectedAssignmentModal.instructions ||
+                  'Solve problems clearly showing your mathematical working. Review your answers with your tutor during next session.'}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  handleToggleAssignment(selectedAssignmentModal);
+                  setSelectedAssignmentModal(null);
+                }}
+                className="btn btn-primary text-xs font-bold px-6 py-2.5 rounded-xl"
+              >
+                {selectedAssignmentModal.status === 'COMPLETED'
+                  ? 'Mark as Incomplete'
+                  : 'Submit Work / Mark Completed'}
+              </button>
+
+              <button
+                onClick={() => setSelectedAssignmentModal(null)}
+                className="text-xs font-semibold text-slate-500 hover:text-slate-800"
+              >
+                Close
+              </button>
             </div>
           </div>
-
-          {/* Recent Activity Card */}
-          <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-5">
-            <h3 className="font-serif text-xl text-[#182238] font-normal">
-              Recent activity
-            </h3>
-
-            <div>
-            <p className="text-sm text-slate-500">
-            Lesson and assignment activity will appear here when available.
-          </p>
-</div>
-          </div>
-
         </div>
+      )}
 
-      </div>
+      {/* 10. ADD SUBJECT MODAL */}
+      {addSubjectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-[#E8E2D8] space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-serif text-xl text-[#0A1428]">Enroll / Track New Subject</h3>
+              <button
+                onClick={() => setAddSubjectModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddSubject} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Subject Selection
+                </label>
+                <select
+                  required
+                  value={newSubjectName}
+                  onChange={(e) => setNewSubjectName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#FAF7F2] border border-slate-300 text-xs font-medium text-[#0A1428]"
+                >
+                  <option value="">Choose a subject</option>
+                  {SUBJECT_GROUPS.map(({ name, subjects }) => (
+                    <optgroup key={name} label={name}>
+                      {subjects.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Current Chapter / Topic
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newSubjectTopic}
+                  onChange={(e) => setNewSubjectTopic(e.target.value)}
+                  placeholder="e.g. Organic Chemistry & Bonding"
+                  className="w-full px-3 py-2 rounded-xl bg-[#FAF7F2] border border-slate-300 text-xs text-[#0A1428]"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAddSubjectModalOpen(false)}
+                  className="btn btn-outline text-xs px-4 py-2"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary text-xs px-5 py-2 font-bold">
+                  Add to Dashboard
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 11. ADD TASK / ASSIGNMENT MODAL */}
+      {addTaskModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-[#E8E2D8] space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-serif text-xl text-[#0A1428]">Add Self-Study Task</h3>
+              <button
+                onClick={() => setAddTaskModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddTask} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Task / Assignment Title
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Solve 2022 Calculus Exam Section B"
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#FAF7F2] border border-slate-300 text-xs text-[#0A1428]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Due Date</label>
+                <input
+                  type="date"
+                  value={newTaskDueDate}
+                  onChange={(e) => setNewTaskDueDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[#FAF7F2] border border-slate-300 text-xs text-[#0A1428]"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAddTaskModalOpen(false)}
+                  className="btn btn-outline text-xs px-4 py-2"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary text-xs px-5 py-2 font-bold">
+                  Save Task
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

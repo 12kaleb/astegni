@@ -1,9 +1,13 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
 import { GraduationCap, Target, Heart, Award, ShieldCheck, Users, Sparkles, BookOpen, CheckCircle, MapPin, ArrowRight } from 'lucide-react';
 
-export default function AboutView({ setActiveTab, onOpenAuth }) {
+export default function AboutView({ tutors = [], setActiveTab, onOpenAuth }) {
+  const tutorsLoading = false;
+
   return (
     <div className="space-y-16 pb-20">
       
@@ -20,7 +24,7 @@ export default function AboutView({ setActiveTab, onOpenAuth }) {
           </h1>
 
           <p className="text-base text-[#64748B] leading-relaxed">
-            Astegni (አስተኚ) was founded in Addis Ababa with a simple yet transformative vision: to pair every student with dedicated, top 1% verified tutors who inspire confidence and turn academic challenges into lifelong success.
+            Astegni (አስተኚ) helps students discover verified tutors and manage lessons and assignments in one place.
           </p>
         </div>
       </section>
@@ -32,23 +36,15 @@ export default function AboutView({ setActiveTab, onOpenAuth }) {
             
             <div className="lg:col-span-6 relative">
               <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white bg-white">
-                <img
+                <Image
                   src="/hero_tutor.jpg"
                   alt="Ethiopian Tutor & Student Learning"
+                  width={720}
+                  height={960}
                   className="w-full h-[400px] object-cover"
                 />
               </div>
 
-              {/* Floating Stat Card */}
-              <div className="absolute -bottom-6 -right-4 bg-[#0A1428] text-white p-4 rounded-2xl shadow-xl border border-[#1E3352] flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#E05A47] text-white flex items-center justify-center font-extrabold text-lg">
-                  15k+
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-white block">Matched Students</span>
-                  <span className="text-[11px] text-[#94A3B8]">Across Addis Ababa & Ethiopia</span>
-                </div>
-              </div>
             </div>
 
             <div className="lg:col-span-6 space-y-6">
@@ -58,21 +54,21 @@ export default function AboutView({ setActiveTab, onOpenAuth }) {
               </h2>
 
               <p className="text-sm text-[#64748B] leading-relaxed">
-                Standard classroom sizes often make it difficult for teachers to cater to every student's unique learning pace. Grade 8 Ministry exams and Grade 12 National Matric exams carry high stakes for university placement and career trajectory.
+                Standard classroom sizes often make it difficult for teachers to cater to every student&apos;s unique learning pace. Grade 8 Ministry exams and Grade 12 National Matric exams carry high stakes for university placement and career trajectory.
               </p>
 
               <p className="text-sm text-[#64748B] leading-relaxed">
-                Astegni solves this by vetting top university graduates and certified educators, matching them directly with families for safe in-person home tutoring or interactive online video classes.
+                The tutor directory shows profiles currently marked verified and open to students. Compare their subjects, experience, and listed rates before deciding who to contact.
               </p>
 
               <div className="grid grid-cols-2 gap-4 pt-2">
                 <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#E8E2D8]">
-                  <h4 className="font-extrabold text-2xl text-[#E05A47]">98%</h4>
-                  <p className="text-xs font-semibold text-[#64748B] mt-0.5">Matric Pass Rate</p>
+                  <h4 className="font-extrabold text-lg text-[#E05A47]">Verified</h4>
+                  <p className="text-xs font-semibold text-[#64748B] mt-0.5">Tutor profiles in directory</p>
                 </div>
                 <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#E8E2D8]">
-                  <h4 className="font-extrabold text-2xl text-[#0A1428]">100%</h4>
-                  <p className="text-xs font-semibold text-[#64748B] mt-0.5">Vetted Educators</p>
+                  <h4 className="font-extrabold text-lg text-[#0A1428]">Trackable</h4>
+                  <p className="text-xs font-semibold text-[#64748B] mt-0.5">Lessons and assignments</p>
                 </div>
               </div>
             </div>
@@ -95,9 +91,9 @@ export default function AboutView({ setActiveTab, onOpenAuth }) {
               <div className="w-12 h-12 rounded-2xl bg-[#E05A47]/10 text-[#E05A47] flex items-center justify-center font-bold">
                 <ShieldCheck className="w-6 h-6" />
               </div>
-              <h3 className="font-extrabold text-xl text-[#0A1428]">Rigorous 5-Step Vetting</h3>
+              <h3 className="font-extrabold text-xl text-[#0A1428]">Verified tutor listings</h3>
               <p className="text-xs text-[#64748B] leading-relaxed">
-                Every tutor undergoes university degree authentication, subject competency examinations, background checks, and teaching methodology interviews.
+                The public directory only displays tutor profiles marked verified and open for students.
               </p>
             </div>
 
@@ -105,9 +101,9 @@ export default function AboutView({ setActiveTab, onOpenAuth }) {
               <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
                 <BookOpen className="w-6 h-6" />
               </div>
-              <h3 className="font-extrabold text-xl text-[#0A1428]">Ethiopian Curriculum Aligned</h3>
+              <h3 className="font-extrabold text-xl text-[#0A1428]">Find relevant subjects</h3>
               <p className="text-xs text-[#64748B] leading-relaxed">
-                Lessons strictly follow the Ministry of Education syllabus, focusing on past entrance exam questions and critical problem-solving skills.
+                Tutor profiles list subjects and grade levels so students can compare available support.
               </p>
             </div>
 
@@ -115,9 +111,9 @@ export default function AboutView({ setActiveTab, onOpenAuth }) {
               <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
                 <Heart className="w-6 h-6" />
               </div>
-              <h3 className="font-extrabold text-xl text-[#0A1428]">Parent Progress Transparency</h3>
+              <h3 className="font-extrabold text-xl text-[#0A1428]">Learning dashboard</h3>
               <p className="text-xs text-[#64748B] leading-relaxed">
-                Receive weekly progress reports, track completed study hours, and communicate directly with your child's tutor through our dashboard portal.
+                Students and tutors can view scheduled lessons and manage assignments from their dashboards.
               </p>
             </div>
 
@@ -136,37 +132,24 @@ export default function AboutView({ setActiveTab, onOpenAuth }) {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            <div className="bg-[#132238] p-6 rounded-2xl border border-[#1E3352] space-y-4">
-              <img src="/tutor_female_1.jpg" alt="Bethlehem" className="w-20 h-20 rounded-2xl object-cover ring-2 ring-[#E05A47]" />
-              <div>
-                <h4 className="font-extrabold text-lg text-white">Bethlehem Tassew</h4>
-                <p className="text-xs font-semibold text-[#E05A47]">Mathematics & Calculus Lead</p>
-                <p className="text-xs text-[#94A3B8] mt-2">AAU B.Sc. Mathematics • 6 Years Tutor Experience</p>
-              </div>
+          {tutorsLoading ? (
+            <p className="text-center text-sm text-[#CBD5E1]" role="status">Loading tutor profiles…</p>
+          ) : tutors.length === 0 ? (
+            <p className="text-center text-sm text-[#CBD5E1]">No verified tutors are currently accepting students.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {tutors.slice(0, 3).map((tutor) => (
+                <div key={tutor.id} className="bg-[#132238] p-6 rounded-2xl border border-[#1E3352] space-y-4">
+                  {tutor.avatar ? <Image src={tutor.avatar} alt={tutor.name} width={80} height={80} className="w-20 h-20 rounded-2xl object-cover ring-2 ring-[#E05A47]" /> : <div className="w-20 h-20 rounded-2xl bg-[#E05A47]/20 text-white flex items-center justify-center text-3xl font-bold">{tutor.name?.charAt(0) || 'T'}</div>}
+                  <div>
+                    <h4 className="font-extrabold text-lg text-white"><Link href={`/tutors/${encodeURIComponent(tutor.id)}`} className="hover:text-[#E05A47]">{tutor.name}</Link></h4>
+                    <p className="text-xs font-semibold text-[#E05A47]">{tutor.title || (tutor.subjects || []).join(' · ') || 'Tutor'}</p>
+                    <p className="text-xs text-[#94A3B8] mt-2">{tutor.experienceYears != null ? `${tutor.experienceYears} years of experience` : 'Experience not provided'} · {tutor.hourlyRateETB != null ? `${Number(tutor.hourlyRateETB).toLocaleString()} ETB/hour` : 'Rate not listed'}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-
-            <div className="bg-[#132238] p-6 rounded-2xl border border-[#1E3352] space-y-4">
-              <img src="/tutor_male_1.jpg" alt="Abebe" className="w-20 h-20 rounded-2xl object-cover ring-2 ring-slate-400" />
-              <div>
-                <h4 className="font-extrabold text-lg text-white">Abebe Kebede</h4>
-                <p className="text-xs font-semibold text-amber-400">Physics & STEM Mentor</p>
-                <p className="text-xs text-[#94A3B8] mt-2">AAiT Mechanical Engineer • 5 Years Tutor Experience</p>
-              </div>
-            </div>
-
-            <div className="bg-[#132238] p-6 rounded-2xl border border-[#1E3352] space-y-4">
-              <img src="/tutor_female_2.jpg" alt="Hiwot" className="w-20 h-20 rounded-2xl object-cover ring-2 ring-emerald-400" />
-              <div>
-                <h4 className="font-extrabold text-lg text-white">Hiwot Alemu</h4>
-                <p className="text-xs font-semibold text-emerald-400">English Language Specialist</p>
-                <p className="text-xs text-[#94A3B8] mt-2">Certified Educator • 7 Years Tutor Experience</p>
-              </div>
-            </div>
-
-          </div>
-
+          )}
           <div className="text-center pt-8">
             <button
               onClick={() => setActiveTab('tutors')}
@@ -182,15 +165,15 @@ export default function AboutView({ setActiveTab, onOpenAuth }) {
       <section className="container">
         <div className="bg-gradient-to-r from-[#E05A47] to-[#FF5A36] text-white p-10 md:p-14 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
           <div className="space-y-2 max-w-lg">
-            <h2 className="text-3xl font-extrabold text-white">Ready to boost your child's grades?</h2>
-            <p className="text-xs text-white/90">Book a free 30-minute diagnostic session with an Astegni tutor today.</p>
+            <h2 className="text-3xl font-extrabold text-white">Ready to boost your child&apos;s grades?</h2>
+            <p className="text-xs text-white/90">Explore verified tutor profiles and compare their current rates.</p>
           </div>
 
           <button
             onClick={() => onOpenAuth('register')}
             className="btn btn-navy btn-lg font-bold shadow-lg"
           >
-            Start Free Trial
+            Create an Account
           </button>
         </div>
       </section>

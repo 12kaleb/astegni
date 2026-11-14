@@ -5,40 +5,48 @@ import TutorDashboard from './dashboards/TutorDashboard';
 import AdminDashboard from './dashboards/AdminDashboard';
 import TeamDashboard from './dashboards/TeamDashboard';
 import ManagerDashboard from './dashboards/ManagerDashboard';
+import BookingInbox from '../components/BookingInbox';
 
+/**
+ * Renders the correct dashboard based on the signed-in user's role.
+ * Each role sees only their own isolated portal — no cross-role switching.
+ */
 export default function DashboardView({
   user,
-  currency = 'ETB',
   onFindTutor = () => {},
+  onSelectTutor = () => {},
+  selectedTutorIds = [],
   onJoinLesson = () => {},
 }) {
-  const allowedRoles = ['student', 'tutor', 'admin', 'team', 'manager'];
-  const activeRole = allowedRoles.includes(user?.role)
-    ? user.role
-    : 'student';
+  const role = user?.role; // lowercase names matching the database roles
 
   return (
-    <div className="min-h-screen bg-[#FAF7F2] py-6 sm:py-10 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-[1240px] mx-auto space-y-6">
-        {activeRole === 'student' && (
+    <div className="min-h-screen bg-[#FAF7F2]">
+      {(role === 'student' || role === 'tutor') && <BookingInbox role={role} />}
+      {role === 'student' && (
+        <StudentDashboard
+          user={user}
+          onFindTutor={onFindTutor}
+          onSelectTutor={onSelectTutor}
+          selectedTutorIds={selectedTutorIds}
+          onJoinLesson={onJoinLesson}
+        />
+      )}
 
-             
+      {role === 'tutor' && <TutorDashboard user={user} />}
+      {role === 'admin' && <AdminDashboard />}
+      {role === 'support_specialist' && <TeamDashboard />}
+      {role === 'manager' && <ManagerDashboard />}
 
-
-<StudentDashboard
-user={user}
-onFindTutor={onFindTutor}
-onJoinLesson={onJoinLesson}
-/>
-
-          
-        )}
-
-        {activeRole === 'tutor' && <TutorDashboard currency={currency} user={user} />}
-        {activeRole === 'admin' && <AdminDashboard />}
-        {activeRole === 'team' && <TeamDashboard />}
-        {activeRole === 'manager' && <ManagerDashboard />}
-      </div>
+      {/* Fallback: unknown or missing role */}
+      {!['student', 'tutor', 'admin', 'support_specialist', 'manager'].includes(role) && (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center space-y-3">
+            <p className="text-lg font-semibold text-[#0A1428]">Your account role isn&apos;t set up yet.</p>
+            <p className="text-sm text-slate-500">Please contact support or try signing in again.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,22 +3,30 @@ import { createClient } from '../../../lib/supabase/server';
 
 export async function GET(request) {
   const url = new URL(request.url);
-  const tokenHash = url.searchParams.get('token_hash');
-  const type = url.searchParams.get('type');
+  const code = url.searchParams.get('code');
+  const nextPath = url.searchParams.get('next');
+  const destination = nextPath?.startsWith('/') && !nextPath.startsWith('//')
+    ? new URL(nextPath, url.origin)
+    : new URL('/', url.origin);
 
-  if (!tokenHash || !type) {
-    return NextResponse.redirect(new URL('/?auth=confirmation-error', url.origin));
+  if (!code) {
+    destination.searchParams.set('auth', 'signin');
+    destination.searchParams.set('error', 'confirmation');
+    return NextResponse.redirect(destination);
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.auth.verifyOtp({
-    token_hash: tokenHash,
-    type,
-  });
-
-  if (error) {
-    return NextResponse.redirect(new URL('/?auth=confirmation-error', url.origin));
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) {
+      destination.searchParams.set('auth', 'signin');
+      destination.searchParams.set('error', 'confirmation');
+    }
+  } catch (error) {
+    console.error('Auth confirmation failed:', error);
+    destination.searchParams.set('auth', 'signin');
+    destination.searchParams.set('error', 'confirmation');
   }
 
-  return NextResponse.redirect(new URL('/?auth=confirmed', url.origin));
+  return NextResponse.redirect(destination);
 }

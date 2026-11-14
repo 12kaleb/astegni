@@ -1,31 +1,18 @@
 import { prisma } from '../../../../lib/prisma';
-import { createClient } from '../../../../lib/supabase/server';
+import { requireUser } from '../../../../lib/auth';
 
 export async function GET() {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser();
+    const appUser = await requireUser('STUDENT');
 
-    if (error || !user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const appUser = await prisma.user.findUnique({
-      where: { supabaseAuthId: user.id },
-      select: { id: true, role: true },
-    });
-
-    if (!appUser || appUser.role !== 'STUDENT') {
+    if (!appUser) {
       return Response.json(
         { error: 'Student access required' },
         { status: 403 }
       );
     }
 
-    const lesson = await prisma.lesson.findFirst({
+    const lessons = await prisma.lesson.findMany({
       where: {
         studentId: appUser.id,
         scheduledAt: { gte: new Date() },
@@ -40,13 +27,20 @@ export async function GET() {
         durationMins: true,
         status: true,
         meetingUrl: true,
+        payment: { select: { status: true, currency: true, checkoutUrl: true } },
         tutor: {
-          select: { name: true },
+          select: {
+            name: true,
+            avatarUrl: true,
+            tutorProfile: { select: { hourlyRateETB: true, hourlyRateUSD: true } },
+          },
         },
       },
     });
 
-    return Response.json({ lesson });
+    const lesson = lessons[0] || null;
+
+    return Response.json({ lesson, lessons });
   } catch {
     return Response.json(
       { error: 'Unable to load your next lesson.' },

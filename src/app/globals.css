@@ -56,6 +56,16 @@
   box-sizing: border-box;
 }
 
+*:focus-visible {
+  outline: 3px solid #0A1428;
+  outline-offset: 3px;
+}
+
+@layer utilities {
+  .text-slate-400 { color: #475569; }
+  .text-gray-400 { color: #4B5563; }
+}
+
 html, body {
   font-family: var(--font-sans);
   background-color: #FAF7F2;

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { GraduationCap, Heart, Mail, Phone, MapPin, Globe, Share2, MessageCircle, Send } from 'lucide-react';
 
 export default function Footer({ setActiveTab, onOpenAuth }) {
@@ -22,7 +23,7 @@ export default function Footer({ setActiveTab, onOpenAuth }) {
             </div>
 
             <p className="text-[#94A3B8] text-sm leading-relaxed max-w-sm">
-              Connecting students across Ethiopia with top 1% verified private tutors. Elevate grades, build confidence, and unlock lifelong potential.
+              Helping students discover verified tutor profiles and manage lessons and assignments.
             </p>
 
             <div className="flex items-center gap-3 text-sm text-[#94A3B8] pt-2">
@@ -104,9 +105,9 @@ export default function Footer({ setActiveTab, onOpenAuth }) {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 text-xs text-[#64748B]">
           <p>© {new Date().getFullYear()} Astegni Technologies (አስተኚ). All rights reserved.</p>
           <div className="flex items-center gap-6">
-            <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
-            <a href="#" className="hover:text-white transition-colors">Safety Guidelines</a>
+            <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
+            <Link href="/terms#safe-conduct" className="hover:text-white transition-colors">Safety Guidelines</Link>
             <a href="#" className="hover:text-white transition-colors">Support Center</a>
           </div>
         </div>

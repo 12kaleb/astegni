@@ -5,8 +5,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
@@ -49,6 +50,42 @@ enum ApprovalStatus {
   REJECTED
 }
 
+enum TutorVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum VerificationDocumentType {
+  NATIONAL_ID
+  DEGREE_CERTIFICATE
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+enum PaymentProvider {
+  CHAPA
+  STRIPE
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
 
 // -------------------------------------------------------------
 // Core User & Auth Model
@@ -61,20 +98,39 @@ model User {
   role         Role      @default(STUDENT)
   avatarUrl    String?
   phone        String?
+  isMinor      Boolean   @default(false)
+  timeZone     String    @default("Africa/Addis_Ababa") // IANA zone used to display lesson times
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  // Preserve linked lesson and learning history through anonymization on account deletion.
+  deletedAt    DateTime?
 
   // Role Relations
   tutorProfile    TutorProfile?
+  selectedTutors  TutorSelection[] @relation("StudentTutorSelections")
+  selectedByStudents TutorSelection[] @relation("TutorStudentSelections")
   studentLessons  Lesson[]         @relation("StudentLessons")
   tutorLessons    Lesson[]         @relation("TutorLessons")
-  assignments     Assignment[]
+  availability    Availability[]
+  studentAssignments Assignment[] @relation("StudentAssignments")
+  tutorAssignments   Assignment[] @relation("TutorAssignments")
   subjectProgress SubjectProgress[]
   assignedTickets Ticket[]         @relation("AssignedTickets")
   requestedApprovals Approval[]    @relation("RequestedApprovals")
   managedApprovals   Approval[]    @relation("ManagedApprovals")
   managedGoals       Goal[]
   sentInvitations Invitation[] @relation("SentInvitations")
+  verificationDocuments VerificationDocument[] @relation("TutorVerificationDocuments")
+  reviewedDocuments VerificationDocument[] @relation("ReviewedVerificationDocuments")
+  reportsMade SafetyReport[] @relation("ReportsMade")
+  reportsReceived SafetyReport[] @relation("ReportsReceived")
+  blocksMade UserBlock[] @relation("BlocksMade")
+  blocksReceived UserBlock[] @relation("BlocksReceived")
+  auditEvents AuditLog[] @relation("AuditActor")
+  guardianConsent GuardianConsent?
+  authoredReviews Review[] @relation("ReviewAuthor")
+  tutorReviews Review[] @relation("TutorReviews")
+  payments Payment[]
 }
 
 // -------------------------------------------------------------
@@ -86,21 +142,38 @@ model TutorProfile {
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title           String?
   university      String?
-  experienceYears Int      @default(0)
+  experienceYears Int?
   location        String?
   modes           String[] @default([])
   gradeLevels     String[] @default([])
   languages       String[] @default([])
   subjects         String[] // e.g. ["GCSE Mathematics", "Physics"]
-  hourlyRateETB    Int      @default(350)
-  hourlyRateUSD    Int      @default(15)
+  hourlyRateETB    Int?
+  hourlyRateUSD    Int?
   bio              String?
-  rating           Float    @default(5.0)
+  rating           Float?
   reviewsCount     Int      @default(0)
   isVerified       Boolean  @default(false)
+  verificationStatus TutorVerificationStatus @default(PENDING)
   openForStudents  Boolean  @default(true)
-  typicalHours     String   @default("3:00-7:30 PM")
-  activeDays       String[] @default(["M", "T", "W", "Th", "F"])
+  // Legacy fields retained for existing profile data; scheduling uses Availability.
+  typicalHours     String?
+  activeDays       String[] @default([])
+
+  @@index([isVerified, openForStudents, rating(sort: Desc)])
+}
+
+model TutorSelection {
+  id        String   @id @default(cuid())
+  studentId String
+  tutorId   String
+  createdAt DateTime @default(now())
+
+  student User @relation("StudentTutorSelections", fields: [studentId], references: [id], onDelete: Cascade)
+  tutor   User @relation("TutorStudentSelections", fields: [tutorId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, tutorId])
+  @@index([tutorId])
 }
 
 // -------------------------------------------------------------
@@ -110,16 +183,46 @@ model Lesson {
   id           String       @id @default(cuid())
   title        String       // e.g. "GCSE Mathematics"
   topic        String?      // e.g. "Quadratic equations"
-  scheduledAt  DateTime
+  scheduledAt  DateTime     // Absolute UTC instant
   durationMins Int          @default(60)
   status       LessonStatus @default(CONFIRMED)
   meetingUrl   String?      // Video room link
   createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  timeZone     String       @default("Africa/Addis_Ababa")
+  pendingActionById String?
+  previousScheduledAt DateTime?
+  previousDurationMins Int?
+  pendingActionReason String?
+  rescheduleCount Int @default(0)
+  cancelledById String?
+  cancellationReason String?
+  reminderSentAt DateTime?
 
   studentId    String
   student      User         @relation("StudentLessons", fields: [studentId], references: [id])
   tutorId      String
   tutor        User         @relation("TutorLessons", fields: [tutorId], references: [id])
+  review       Review?
+  payment      Payment?
+
+  @@index([tutorId, scheduledAt])
+  @@index([studentId, scheduledAt])
+  @@index([status, scheduledAt, reminderSentAt])
+}
+
+model Availability {
+  id        String   @id @default(cuid())
+  tutorId   String
+  tutor     User     @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  weekday   Int      // 0 = Sunday through 6 = Saturday in the tutor's time zone
+  startMinute Int    // Minutes after local midnight
+  endMinute Int      // Exclusive end minute
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tutorId, weekday, startMinute, endMinute])
+  @@index([tutorId, weekday])
 }
 
 // -------------------------------------------------------------
@@ -127,25 +230,28 @@ model Lesson {
 // -------------------------------------------------------------
 model Assignment {
   id        String   @id @default(cuid())
-  title     String   // e.g. "Chemistry quiz"
+  title     String
   dueDate   DateTime
-  status    String   @default("PENDING") // PENDING, SUBMITTED, GRADED
+  status    String   @default("PENDING")
   score     Int?
   maxScore  Int?     @default(10)
   studentId String
-  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student   User     @relation("StudentAssignments", fields: [studentId], references: [id], onDelete: Cascade)
+  tutorId   String?
+  tutor     User?    @relation("TutorAssignments", fields: [tutorId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
+
+  @@index([studentId, dueDate])
 }
 
 model SubjectProgress {
   id          String   @id @default(cuid())
-  subjectName String   // e.g. "Mathematics"
-  topic       String   // e.g. "Algebra & functions"
-  progressPct Int      @default(0) // e.g. 72%
+  subjectName String
+  topic       String
+  progressPct Int      @default(0)
   studentId   String
   student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
 }
-
 // -------------------------------------------------------------
 // Support & Operations Desk (For Role: SUPPORT_SPECIALIST)
 // -------------------------------------------------------------
@@ -205,4 +311,126 @@ model Invitation {
 
   @@index([email, acceptedAt])
   @@index([expiresAt])
+}
+
+model RateLimitBucket {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
+
+  @@index([resetAt])
+}
+
+model VerificationDocument {
+  id           String                  @id @default(cuid())
+  tutorId      String
+  tutor        User                    @relation("TutorVerificationDocuments", fields: [tutorId], references: [id], onDelete: Cascade)
+  type         VerificationDocumentType
+  storagePath  String                  @unique
+  contentType  String
+  sizeBytes    Int
+  status       ReviewStatus            @default(PENDING)
+  reviewerId   String?
+  reviewer     User?                   @relation("ReviewedVerificationDocuments", fields: [reviewerId], references: [id], onDelete: SetNull)
+  reviewedAt   DateTime?
+  reviewNote   String?
+  createdAt    DateTime                @default(now())
+
+  @@index([tutorId, status])
+  @@index([status, createdAt])
+}
+
+model SafetyReport {
+  id             String       @id @default(cuid())
+  reporterId     String
+  reporter       User         @relation("ReportsMade", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUserId String
+  reportedUser   User         @relation("ReportsReceived", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  category       String
+  details        String
+  status         ReportStatus @default(OPEN)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([reportedUserId, status])
+  @@index([reporterId, createdAt])
+}
+
+model UserBlock {
+  blockerId String
+  blocker   User     @relation("BlocksMade", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   User     @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  targetType String
+  targetId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([targetType, targetId])
+}
+
+model GuardianConsent {
+  id             String       @id @default(cuid())
+  studentId      String       @unique
+  student        User         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  guardianName   String
+  guardianEmail  String
+  status         ReviewStatus @default(PENDING)
+  policyVersion  String
+  submittedAt    DateTime     @default(now())
+  reviewedAt     DateTime?
+  reviewerId     String?
+  reviewerNote   String?
+
+  @@index([status, submittedAt])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  lessonId  String   @unique
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  studentId String
+  // App account deletion anonymizes the user so historical reviews remain attributable without PII.
+  student   User     @relation("ReviewAuthor", fields: [studentId], references: [id], onDelete: Cascade)
+  tutorId   String
+  tutor     User     @relation("TutorReviews", fields: [tutorId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?  @db.VarChar(2000)
+  createdAt DateTime @default(now())
+
+  @@index([tutorId, createdAt])
+}
+
+model Payment {
+  id                String          @id @default(cuid())
+  lessonId          String          @unique
+  lesson            Lesson          @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  studentId         String
+  // App account deletion anonymizes the user so payment records remain available for reconciliation.
+  student           User            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  provider          PaymentProvider
+  status            PaymentStatus   @default(PENDING)
+  amountMinor       Int
+  currency          String          @db.VarChar(3)
+  providerReference String          @unique
+  checkoutUrl       String?
+  providerPaymentId String?         @unique
+  paidAt            DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([lessonId, status])
+  @@index([studentId, createdAt])
 }

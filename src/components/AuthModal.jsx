@@ -16,6 +16,9 @@ export default function AuthModal({ initialMode = 'signin', onClose, onLoginSucc
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
   const [selectedGrade, setSelectedGrade] = useState('Grade 11');
+  const [isMinor, setIsMinor] = useState(false);
+  const [guardianName, setGuardianName] = useState('');
+  const [guardianEmail, setGuardianEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -33,51 +36,52 @@ export default function AuthModal({ initialMode = 'signin', onClose, onLoginSucc
       const supabase = createClient();
   
       if (mode === 'signin') {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
           email: emailOrPhone.trim(),
           password,
         });
-  
+
         if (error) {
           setAuthError(error.message);
           return;
         }
-  
-        onLoginSuccess({
-          name: data.user.user_metadata?.full_name || data.user.email,
-          role: 'student',
-        });
+
+        // Role is resolved by page.js via onAuthStateChange → /api/auth/profile
         onClose();
         return;
       }
   
-      const { data, error } = await supabase.auth.signUp({
-        email: emailOrPhone.trim(),
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/confirm`,
-          data: {
-            full_name: fullName.trim(),
-            requested_role: role,
-            grade_level: selectedGrade,
-          },
-        },
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: fullName.trim(),
+          email: emailOrPhone.trim(),
+          password,
+          role,
+          gradeLevel: selectedGrade,
+          isMinor: role === 'student' && isMinor,
+          guardianName: role === 'student' && isMinor ? guardianName.trim() : undefined,
+          guardianEmail: role === 'student' && isMinor ? guardianEmail.trim() : undefined,
+        }),
       });
-  
-      if (error) {
-        setAuthError(error.message);
+      const result = await response.json();
+
+      if (!response.ok) {
+        setAuthError(result.error || 'Could not create your account.');
         return;
       }
   
-      if (data.session) {
-        onLoginSuccess({ name: fullName.trim(), role });
+      if (result.hasSession) {
+        onLoginSuccess({ name: result.name, role: result.role });
         onClose();
         return;
       }
   
       setConfirmationPending(true);
       setSubmitted(true);
-    } catch {
+    } catch (error) {
+      console.error('[auth] signup request failed:', error);
       setAuthError('Could not connect. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -120,7 +124,7 @@ export default function AuthModal({ initialMode = 'signin', onClose, onLoginSucc
                   : 'The right support starts right here.'}
               </h2>
               <p className="text-xs text-[#94A3B8] leading-relaxed">
-                Connect with verified tutors in Addis Ababa & across Ethiopia. Guaranteed 1-on-1 progress and Grade 8 & 12 exam mastery.
+                Browse verified tutor profiles, compare listed rates, and manage lessons and assignments in your dashboard.
               </p>
             </div>
 
@@ -128,21 +132,21 @@ export default function AuthModal({ initialMode = 'signin', onClose, onLoginSucc
             <div className="space-y-2.5 pt-2 text-xs text-[#CBD5E1]">
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-full bg-[#E05A47]/20 text-[#E05A47] flex items-center justify-center text-[10px] font-bold">✓</div>
-                <span>Top 1% Vetted & Background Checked Tutors</span>
+                <span>Browse tutor profiles marked verified</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-full bg-[#E05A47]/20 text-[#E05A47] flex items-center justify-center text-[10px] font-bold">✓</div>
-                <span>Ethiopian National Curriculum Aligned</span>
+                <span>Compare listed subjects and hourly rates</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-full bg-[#E05A47]/20 text-[#E05A47] flex items-center justify-center text-[10px] font-bold">✓</div>
-                <span>Free 30-Minute Trial Session</span>
+                <span>Student and tutor dashboard access</span>
               </div>
             </div>
           </div>
 
           <div className="pt-8 text-[11px] text-[#64748B] border-t border-[#1E3352] relative z-10">
-            Trusted by 15,000+ Ethiopian families
+            Create an account to get started
           </div>
         </div>
 
@@ -337,7 +341,7 @@ export default function AuthModal({ initialMode = 'signin', onClose, onLoginSucc
                         <input
                           type="password"
                           required
-                          placeholder="At least 6 characters"
+                          placeholder="At least 8 characters"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-[#CBD5E1] text-xs font-medium text-[#0A1428] focus:outline-none focus:border-[#E05A47]"
@@ -380,6 +384,15 @@ export default function AuthModal({ initialMode = 'signin', onClose, onLoginSucc
                         <option value="University / Adult">University / Adult Language</option>
                       </select>
                     </div>
+
+                    {role === 'student' && <div className="space-y-2 rounded-xl border border-slate-200 p-3">
+                      <label className="flex items-start gap-2 text-xs text-slate-700"><input type="checkbox" checked={isMinor} onChange={(event) => setIsMinor(event.target.checked)} className="mt-0.5" />I am under 18.</label>
+                      {isMinor && <>
+                        <input required aria-label="Parent or guardian name" value={guardianName} onChange={(event) => setGuardianName(event.target.value)} placeholder="Parent or guardian name" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs" />
+                        <input required type="email" aria-label="Parent or guardian email" value={guardianEmail} onChange={(event) => setGuardianEmail(event.target.value)} placeholder="Parent or guardian email" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs" />
+                        <p className="text-[11px] leading-4 text-slate-500">Astegni must independently verify guardian authorization before enabling tutor interactions. These details are stored for that review.</p>
+                      </>}
+                    </div>}
 
                     <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 text-xs text-amber-800 space-y-1">
                       <span className="font-bold block">✨ Free Gift Included:</span>

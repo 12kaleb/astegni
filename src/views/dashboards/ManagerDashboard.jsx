@@ -1,409 +1,364 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  TrendingUp,
-  Layers,
-  CheckSquare,
-  Target,
-  ArrowRight,
-  Download,
-  Plus,
-  Search,
-  Bell,
-  ChevronRight,
-  FileText,
-  Calendar,
-  Users
+  TrendingUp, CheckSquare, Target, ArrowRight, FileText,
+  Users, RefreshCw, AlertTriangle, Check, X, GraduationCap,
+  BookOpen, Ticket, ClipboardList,
 } from 'lucide-react';
 
+const APPROVAL_TYPE_STYLES = {
+  PTO:     { bg: 'bg-blue-50 text-blue-700 border-blue-200',   label: 'PTO'     },
+  EXPENSE: { bg: 'bg-amber-50 text-amber-700 border-amber-200', label: 'Expense' },
+  GOAL:    { bg: 'bg-purple-50 text-purple-700 border-purple-200', label: 'Goal' },
+};
+
+const STATUS_STYLES = {
+  PENDING:  { bg: 'bg-slate-100 text-slate-600',    dot: 'bg-slate-400'  },
+  APPROVED: { bg: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+  REJECTED: { bg: 'bg-red-100 text-red-700',         dot: 'bg-red-500'    },
+};
+
+const GOAL_STATUS = {
+  ON_TRACK:  { bg: 'bg-emerald-50 text-emerald-700', bar: 'bg-emerald-500', label: 'On Track'  },
+  AT_RISK:   { bg: 'bg-amber-50 text-amber-700',     bar: 'bg-amber-500',   label: 'At Risk'   },
+  OFF_TRACK: { bg: 'bg-red-50 text-red-700',         bar: 'bg-red-500',     label: 'Off Track' },
+};
+
+function timeAgo(d) {
+  const m = Math.floor((Date.now() - new Date(d)) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
 export default function ManagerDashboard() {
-  const topMetrics = [
-    {
-      title: 'Team performance',
-      value: '92%',
-      sub: '↑ 4 pts this month',
-      subColor: 'text-[#137333]',
-      icon: TrendingUp,
-      iconBg: 'bg-[#E6F4EA] text-[#137333]',
-    },
-    {
-      title: 'Capacity used',
-      value: '84%',
-      sub: '2 teammates near limit',
-      subColor: 'text-[#B06000]',
-      icon: Layers,
-      iconBg: 'bg-[#FEF7E0] text-[#B06000]',
-    },
-    {
-      title: 'Pending approvals',
-      value: '6',
-      sub: '3 due today',
-      subColor: 'text-[#C5221F]',
-      icon: CheckSquare,
-      iconBg: 'bg-[#FCE8E6] text-[#C5221F]',
-    },
-    {
-      title: 'Goals on track',
-      value: '14 / 17',
-      sub: '82% progressing well',
-      icon: Target,
-      iconBg: 'bg-[#F3E8FD] text-[#9334E6]',
-    },
-  ];
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState('');
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'approvals' | 'goals'
+  const [updatingId, setUpdatingId] = useState(null);
 
-  const weeklyBars = [
-    { label: 'W1', value: 50 },
-    { label: 'W2', value: 65 },
-    { label: 'W3', value: 58 },
-    { label: 'W4', value: 72 },
-    { label: 'W5', value: 68 },
-    { label: 'W6', value: 80 },
-    { label: 'W7', value: 75 },
-    { label: 'W8', value: 92, active: true },
-  ];
+  const loadData = useCallback(async () => {
+    try {
+      setError('');
+      const res  = await fetch('/api/manager/overview', { cache: 'no-store' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Could not load data.');
+      setData(json);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const approvals = [
-    {
-      title: 'Time off · Elena Ruiz',
-      detail: 'Sep 28–Oct 2',
-      badge: 'PTO',
-      badgeColor: 'bg-[#E8F0FE] text-[#1A73E8]',
-    },
-    {
-      title: 'Expense report · Marcus Lee',
-      detail: '$1,284.60',
-      badge: 'Expense',
-      badgeColor: 'bg-[#FEF7E0] text-[#B06000]',
-    },
-    {
-      title: 'Goal update · Priya Shah',
-      detail: 'Q4 Enablement plan',
-      badge: 'Goal',
-      badgeColor: 'bg-[#F3E8FD] text-[#9334E6]',
-    },
-  ];
+  useEffect(() => { loadData(); }, [loadData]);
 
-  const workloads = [
-    { name: 'Elena Ruiz', role: 'Product Ops', pct: 88, color: 'bg-[#137333]' },
-    { name: 'Marcus Lee', role: 'Solutions', pct: 102, color: 'bg-[#B06000]' },
-    { name: 'Priya Shah', role: 'Enablement', pct: 71, color: 'bg-[#1A73E8]' },
-    { name: 'Noah Williams', role: 'Analytics', pct: 94, color: 'bg-[#137333]' },
-  ];
+  async function handleApproval(approvalId, status) {
+    setUpdatingId(approvalId);
+    try {
+      const res  = await fetch('/api/manager/overview', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approvalId, status }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      setData((prev) => ({
+        ...prev,
+        approvals: prev.approvals.map((a) =>
+          a.id === approvalId ? { ...a, status: json.approval.status } : a
+        ),
+        metrics: {
+          ...prev.metrics,
+          pendingApprovalsCount: prev.approvals.filter((a) => a.id !== approvalId && a.status === 'PENDING').length,
+        },
+      }));
+    } catch (e) {
+      alert('Failed: ' + e.message);
+    } finally {
+      setUpdatingId(null);
+    }
+  }
 
-  const goals = [
-    { name: 'Reduce onboarding time', pct: 86, color: 'bg-[#137333]' },
-    { name: 'Improve forecast accuracy', pct: 72, color: 'bg-[#1A73E8]' },
-    { name: 'Automate weekly reporting', pct: 48, color: 'bg-[#B06000]' },
-  ];
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#FAF7F2] flex items-center justify-center">
+        <RefreshCw className="w-7 h-7 text-indigo-500 animate-spin" />
+      </div>
+    );
+  }
 
-  const recentActivity = [
-    { name: 'Elena Ruiz', action: 'completed milestone', item: 'Launch readiness review', time: '9:42 AM' },
-    { name: 'Marcus Lee', action: 'submitted approval', item: 'Client travel expenses', time: '9:18 AM' },
-    { name: 'Priya Shah', action: 'updated goal', item: 'Onboarding time reduction', time: 'Yesterday' },
-    { name: 'Noah Williams', action: 'shared report', item: 'Weekly capacity forecast', time: 'Yesterday' },
-  ];
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#FAF7F2] flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <AlertTriangle className="w-8 h-8 text-red-500 mx-auto" />
+          <p className="font-semibold text-[#0A1428]">{error}</p>
+          <button onClick={loadData} className="btn btn-primary btn-sm">Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  const { metrics, approvals, goals, manager } = data;
+  const pendingApprovals = approvals.filter((a) => a.status === 'PENDING');
+  const goalStats = metrics.goalStats;
 
   return (
-    <div className="space-y-7 animate-fadeIn max-w-[1240px] mx-auto text-[#182238]">
-      
-      {/* Top Meta Sub-bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-        <div>
-          <span className="font-bold text-sm text-[#182238]">Manager workspace</span>
-          <span className="text-xs text-slate-400 block sm:inline sm:ml-2">
-            Operations Excellence · 12 direct reports
-          </span>
-        </div>
+    <div className="min-h-screen bg-[#FAF7F2] py-6 sm:py-10 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1240px] mx-auto space-y-7 text-[#182238]">
 
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search Northstar..."
-              className="pl-8 pr-4 py-1.5 text-xs bg-white border border-slate-200 rounded-full w-48 sm:w-64 focus:outline-none focus:border-slate-400"
-            />
-          </div>
-          <button className="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors">
-            <Bell className="w-4 h-4" />
-          </button>
-          <div className="w-8 h-8 rounded-full bg-slate-100 font-bold text-xs flex items-center justify-center text-slate-700">
-            AM
-          </div>
-        </div>
-      </div>
-
-      {/* Main Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-serif text-3xl sm:text-4xl font-normal text-[#182238] tracking-tight">
-            Good morning, Avery
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Your team is on track. Three items need your attention today.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          <button className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 shadow-sm transition-all">
-            <Download className="w-3.5 h-3.5" />
-            Team report
-          </button>
-          <button className="flex items-center gap-1.5 px-4 py-2 bg-[#1A73E8] hover:bg-[#1557B0] text-white rounded-xl text-xs font-semibold shadow-sm transition-all">
-            <Plus className="w-3.5 h-3.5" />
-            Add goal
-          </button>
-        </div>
-      </div>
-
-      {/* Top 4 KPI Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {topMetrics.map((m, idx) => {
-          const Icon = m.icon;
-          return (
-            <div key={idx} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.02)] flex flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500 font-medium">{m.title}</span>
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${m.iconBg}`}>
-                  <Icon className="w-3.5 h-3.5" />
-                </div>
-              </div>
-              <div className="my-2">
-                <div className="text-3xl font-serif text-[#182238]">{m.value}</div>
-                <span className={`text-[11px] font-medium ${m.subColor || 'text-slate-400'}`}>
-                  {m.sub}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Row 2: Team Performance Chart & Approvals */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Team performance chart (7 cols) */}
-        <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-5 flex flex-col justify-between">
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="font-serif text-xl font-normal text-[#182238]">Team performance</h2>
-              <p className="text-xs text-slate-400 mt-0.5">Weekly output vs target · Last 8 weeks</p>
-            </div>
-            <button className="text-xs font-semibold text-[#1A73E8] hover:underline flex items-center gap-0.5">
-              Open analytics <ArrowRight className="w-3 h-3 ml-0.5" />
-            </button>
-          </div>
-
-          {/* Bar Chart Simulation */}
-          <div className="h-44 flex items-end justify-between gap-3 pt-6 px-4 border-b border-slate-100">
-            {weeklyBars.map((b, idx) => (
-              <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
-                <div
-                  className={`w-full max-w-[42px] rounded-t-sm transition-all ${
-                    b.active ? 'bg-[#1A73E8]' : 'bg-[#E8F0FE]'
-                  }`}
-                  style={{ height: `${b.value}%` }}
-                />
-                <span className="text-[10px] text-slate-400 font-medium">{b.label}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-5 text-xs text-slate-600">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#1A73E8]" />
-              <span>Completed work</span>
-            </div>
-            <span className="ml-auto text-[11px] font-semibold text-[#137333]">
-              +12% over 8 weeks
-            </span>
-          </div>
-        </div>
-
-        {/* Approvals (5 cols) */}
-        <div className="lg:col-span-5 bg-white rounded-3xl border border-slate-200 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="font-serif text-xl font-normal text-[#182238]">Approvals</h2>
-              <p className="text-xs text-slate-400 mt-0.5">6 awaiting your review</p>
-            </div>
-            <button className="text-xs font-semibold text-[#1A73E8] hover:underline flex items-center gap-0.5">
-              Review all <ArrowRight className="w-3 h-3 ml-0.5" />
-            </button>
-          </div>
-
-          <div className="divide-y divide-slate-100 pt-1">
-            {approvals.map((appr, idx) => (
-              <div key={idx} className="py-3 first:pt-0 last:pb-0 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400">
-                    <FileText className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-semibold text-[#182238]">{appr.title}</h4>
-                    <p className="text-[10px] text-slate-400">{appr.detail}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${appr.badgeColor}`}>
-                    {appr.badge}
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-slate-300" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-      </div>
-
-      {/* Row 3: Team Workload, Goals, Attendance */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* Team workload */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="font-serif text-lg font-normal text-[#182238]">Team workload</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Planned capacity this week</p>
-            </div>
-            <button className="text-xs font-semibold text-[#1A73E8] hover:underline flex items-center">
-              Balance <ArrowRight className="w-3 h-3 ml-0.5" />
-            </button>
-          </div>
-
-          <div className="space-y-3.5 pt-1">
-            {workloads.map((w, idx) => (
-              <div key={idx} className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="font-medium text-[#182238]">{w.name}</span>
-                  <span className="text-slate-400 text-[11px] font-mono">{w.pct}%</span>
-                </div>
-                <span className="text-[10px] text-slate-400 block">{w.role}</span>
-                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${w.color}`} style={{ width: `${Math.min(w.pct, 100)}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Goals */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="font-serif text-lg font-normal text-[#182238]">Goals</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Q3 · 17 active goals</p>
-            </div>
-            <button className="text-xs font-semibold text-[#1A73E8] hover:underline flex items-center">
-              View goals <ArrowRight className="w-3 h-3 ml-0.5" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 my-2">
-            <div className="p-2.5 rounded-xl bg-[#E6F4EA] text-center">
-              <span className="text-sm font-bold font-serif text-[#137333]">14</span>
-              <span className="text-[9px] block text-[#137333] font-semibold mt-0.5">On track</span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-[#FEF7E0] text-center">
-              <span className="text-sm font-bold font-serif text-[#B06000]">2</span>
-              <span className="text-[9px] block text-[#B06000] font-semibold mt-0.5">At risk</span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-[#FCE8E6] text-center">
-              <span className="text-sm font-bold font-serif text-[#C5221F]">1</span>
-              <span className="text-[9px] block text-[#C5221F] font-semibold mt-0.5">Off track</span>
-            </div>
-          </div>
-
-          <div className="space-y-3 pt-2">
-            {goals.map((g, idx) => (
-              <div key={idx} className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="text-[#182238] font-medium text-[11px]">{g.name}</span>
-                  <span className="text-slate-400 text-[10px] font-mono">{g.pct}%</span>
-                </div>
-                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${g.color}`} style={{ width: `${g.pct}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Attendance */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="font-serif text-lg font-normal text-[#182238]">Attendance</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Today · Thursday, Sep 24</p>
-            </div>
-            <button className="text-xs font-semibold text-[#1A73E8] hover:underline flex items-center">
-              View calendar <ArrowRight className="w-3 h-3 ml-0.5" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 my-2">
-            <div className="p-2.5 rounded-xl bg-[#E6F4EA] text-center">
-              <span className="text-sm font-bold font-serif text-[#137333]">9</span>
-              <span className="text-[9px] block text-[#137333] font-semibold mt-0.5">Present</span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-[#E8F0FE] text-center">
-              <span className="text-sm font-bold font-serif text-[#1A73E8]">2</span>
-              <span className="text-[9px] block text-[#1A73E8] font-semibold mt-0.5">Remote</span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-[#FEF7E0] text-center">
-              <span className="text-sm font-bold font-serif text-[#B06000]">1</span>
-              <span className="text-[9px] block text-[#B06000] font-semibold mt-0.5">Out</span>
-            </div>
-          </div>
-
-          <div className="pt-3 border-t border-slate-100 space-y-2 text-xs">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-              Upcoming time off
-            </span>
-            <div className="flex justify-between items-center text-slate-600">
-              <span className="font-medium text-[#182238]">Elena Ruiz</span>
-              <span className="text-[11px] text-slate-400 font-mono">Sep 28–Oct 2</span>
-            </div>
-            <div className="flex justify-between items-center text-slate-600">
-              <span className="font-medium text-[#182238]">Noah Williams</span>
-              <span className="text-[11px] text-slate-400 font-mono">Oct 5</span>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Row 4: Recent team activity */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
-        <div className="flex items-center justify-between">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h3 className="font-serif text-lg font-normal text-[#182238]">Recent team activity</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Updates across your team</p>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-white" />
+              </div>
+              <h1 className="font-extrabold text-2xl text-[#0A1428] tracking-tight">Manager Workspace</h1>
+              <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full">
+                {manager?.name}
+              </span>
+            </div>
+            <p className="text-sm text-slate-500 mt-1 ml-10">
+              Astegni Operations · {new Date().toLocaleDateString('en-ET', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
           </div>
-          <button className="text-xs font-semibold text-[#1A73E8] hover:underline flex items-center">
-            View all activity <ArrowRight className="w-3 h-3 ml-0.5" />
+          <button onClick={loadData} className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-[#E8E2D8] bg-white text-xs font-semibold text-slate-600 hover:border-indigo-300 transition-all self-start">
+            <RefreshCw className="w-3.5 h-3.5" /> Refresh
           </button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <tbody className="divide-y divide-slate-100">
-              {recentActivity.map((r, idx) => (
-                <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-3 font-semibold text-[#182238] w-40">{r.name}</td>
-                  <td className="py-3 text-slate-400 w-36">{r.action}</td>
-                  <td className="py-3 font-medium text-[#182238]">{r.item}</td>
-                  <td className="py-3 text-slate-400 text-right font-mono text-[11px]">{r.time}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: 'Total Users',       value: metrics.totalUsers,            sub: `${metrics.students} students · ${metrics.tutors} tutors`, icon: Users,        style: 'bg-blue-100 text-blue-600' },
+            { label: 'Active Lessons',    value: metrics.upcomingLessons,        sub: `${metrics.totalLessons} total sessions booked`,            icon: BookOpen,     style: 'bg-emerald-100 text-emerald-600' },
+            { label: 'Pending Approvals', value: metrics.pendingApprovalsCount,  sub: `${approvals.length} total requests`,                       icon: CheckSquare,  style: metrics.pendingApprovalsCount > 0 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500' },
+            { label: 'Goals On Track',    value: goalStats.onTrack,              sub: `${goalStats.atRisk} at risk · ${goalStats.offTrack} off track`, icon: Target, style: 'bg-purple-100 text-purple-600' },
+          ].map((c, i) => {
+            const Icon = c.icon;
+            return (
+              <div key={i} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500 font-medium">{c.label}</span>
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${c.style}`}>
+                    <Icon className="w-3.5 h-3.5" />
+                  </div>
+                </div>
+                <div className="text-3xl font-bold text-[#182238] leading-none">{c.value}</div>
+                <span className="text-[11px] text-slate-400 font-medium">{c.sub}</span>
+              </div>
+            );
+          })}
         </div>
-      </div>
 
+        {/* Platform Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Verified Tutors', value: metrics.verifiedTutors,  total: metrics.tutors,         color: 'bg-emerald-500' },
+            { label: 'Open Tickets',    value: metrics.openTickets,      total: metrics.totalTickets,   color: 'bg-red-400'     },
+            { label: 'Pending Approvals',value: metrics.pendingApprovalsCount, total: null,             color: 'bg-amber-500'   },
+            { label: 'Lesson Sessions', value: metrics.upcomingLessons,  total: metrics.totalLessons,   color: 'bg-indigo-500'  },
+          ].map((s, i) => (
+            <div key={i} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-2">
+              <span className="text-[11px] text-slate-400 font-medium">{s.label}</span>
+              <div className="flex items-end justify-between">
+                <span className="text-2xl font-bold text-[#182238]">{s.value ?? '—'}</span>
+                <span className="text-[11px] text-slate-400 font-mono">of {s.total ?? '—'}</span>
+              </div>
+              {s.total > 0 && (
+                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${s.color}`} style={{ width: `${Math.round(((s.value ?? 0) / s.total) * 100)}%` }} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Tab Nav */}
+        <div className="flex items-center bg-slate-100 p-1 rounded-2xl gap-1 w-fit">
+          {[
+            { id: 'overview',  label: 'Overview'  },
+            { id: 'approvals', label: `Approvals (${pendingApprovals.length})` },
+            { id: 'goals',     label: `Goals (${goals.length})` },
+          ].map((t) => (
+            <button key={t.id} onClick={() => setActiveTab(t.id)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === t.id ? 'bg-white text-[#0A1428] shadow-sm' : 'text-slate-500 hover:text-[#0A1428]'}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── OVERVIEW TAB ── */}
+        {activeTab === 'overview' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            {/* Goal Progress */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="font-bold text-lg text-[#182238]">Q4 Goals</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">{goals.length} active · {goalStats.onTrack} on track</p>
+                </div>
+                <div className="flex gap-2">
+                  {[['bg-emerald-100 text-emerald-700', `${goalStats.onTrack} On Track`], ['bg-amber-100 text-amber-700', `${goalStats.atRisk} At Risk`], ['bg-red-100 text-red-700', `${goalStats.offTrack} Off Track`]].map(([c, l]) => (
+                    <span key={l} className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${c}`}>{l}</span>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-4">
+                {goals.map((g) => {
+                  const s = GOAL_STATUS[g.status] || GOAL_STATUS.ON_TRACK;
+                  return (
+                    <div key={g.id} className="space-y-1.5">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-semibold text-[#182238]">{g.title}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-slate-400">{g.progressPct}%</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${s.bg}`}>{s.label}</span>
+                        </div>
+                      </div>
+                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${s.bar} transition-all`} style={{ width: `${g.progressPct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Pending Approvals */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="font-bold text-lg text-[#182238]">Pending Approvals</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">{pendingApprovals.length} awaiting your review</p>
+                </div>
+              </div>
+              {pendingApprovals.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 text-sm">All caught up! No pending approvals.</div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingApprovals.map((a) => {
+                    const t = APPROVAL_TYPE_STYLES[a.type] || APPROVAL_TYPE_STYLES.GOAL;
+                    const isUpdating = updatingId === a.id;
+                    return (
+                      <div key={a.id} className="p-3.5 rounded-2xl border border-slate-100 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${t.bg}`}>{t.label}</span>
+                              <span className="text-[10px] text-slate-400">{a.requester?.name}</span>
+                            </div>
+                            <p className="text-xs font-semibold text-[#182238] mt-1">{a.title}</p>
+                            <p className="text-[10px] text-slate-400">{a.detail}</p>
+                          </div>
+                          <span className="text-[10px] text-slate-400 flex-shrink-0">{timeAgo(a.createdAt)}</span>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button disabled={isUpdating} onClick={() => handleApproval(a.id, 'APPROVED')}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[10px] font-bold hover:bg-emerald-700 disabled:opacity-50 transition-all">
+                            <Check className="w-3 h-3" /> {isUpdating ? '…' : 'Approve'}
+                          </button>
+                          <button disabled={isUpdating} onClick={() => handleApproval(a.id, 'REJECTED')}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200 text-[10px] font-bold hover:bg-red-100 disabled:opacity-50 transition-all">
+                            <X className="w-3 h-3" /> Reject
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── APPROVALS TAB ── */}
+        {activeTab === 'approvals' && (
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-3">
+            <h2 className="font-bold text-lg text-[#182238]">All Approvals</h2>
+            {approvals.length === 0 ? (
+              <p className="text-sm text-slate-400 py-6 text-center">No approvals yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {approvals.map((a) => {
+                  const t = APPROVAL_TYPE_STYLES[a.type] || APPROVAL_TYPE_STYLES.GOAL;
+                  const s = STATUS_STYLES[a.status] || STATUS_STYLES.PENDING;
+                  const isUpdating = updatingId === a.id;
+                  return (
+                    <div key={a.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-all">
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs font-semibold text-[#182238]">{a.title}</p>
+                          <p className="text-[10px] text-slate-400">{a.detail} · {a.requester?.name} · {timeAgo(a.createdAt)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${t.bg}`}>{t.label}</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${s.bg}`}>{a.status}</span>
+                        {a.status === 'PENDING' && (
+                          <>
+                            <button disabled={isUpdating} onClick={() => handleApproval(a.id, 'APPROVED')}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-bold hover:bg-emerald-700 disabled:opacity-50">
+                              {isUpdating ? '…' : '✓'}
+                            </button>
+                            <button disabled={isUpdating} onClick={() => handleApproval(a.id, 'REJECTED')}
+                              className="px-2.5 py-1 rounded-lg border border-red-200 bg-red-50 text-red-700 text-[10px] font-bold hover:bg-red-100 disabled:opacity-50">
+                              ✕
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── GOALS TAB ── */}
+        {activeTab === 'goals' && (
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-lg text-[#182238]">Q4 Goals Tracker</h2>
+              <div className="flex gap-2">
+                {[['bg-emerald-100 text-emerald-700', goalStats.onTrack, 'On Track'], ['bg-amber-100 text-amber-700', goalStats.atRisk, 'At Risk'], ['bg-red-100 text-red-700', goalStats.offTrack, 'Off Track']].map(([c, n, l]) => (
+                  <span key={l} className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${c}`}>{n} {l}</span>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-5">
+              {goals.map((g) => {
+                const s = GOAL_STATUS[g.status] || GOAL_STATUS.ON_TRACK;
+                return (
+                  <div key={g.id} className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-[#182238]">{g.title}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${s.bg}`}>{s.label}</span>
+                        <span className="font-mono text-slate-400">{g.progressPct}%</span>
+                      </div>
+                    </div>
+                    <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${s.bar} transition-all`} style={{ width: `${g.progressPct}%` }} />
+                    </div>
+                    <p className="text-[10px] text-slate-400">{g.quarter} · {timeAgo(g.createdAt)}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+      </div>
     </div>
   );
 }

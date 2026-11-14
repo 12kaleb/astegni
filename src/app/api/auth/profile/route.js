@@ -32,12 +32,22 @@ export async function POST() {
     email: user.email,
     name,
     role,
+    isMinor: Boolean(user.user_metadata?.is_minor),
   };
 
   if (role === 'TUTOR') {
     createData.tutorProfile = {
       create: { subjects: [] },
     };
+  }
+  const guardianName = user.user_metadata?.guardian_name;
+  const guardianEmail = user.user_metadata?.guardian_email;
+  if (role === 'STUDENT' && createData.isMinor && typeof guardianName === 'string' && typeof guardianEmail === 'string') {
+    createData.guardianConsent = { create: {
+      guardianName: guardianName.trim().slice(0, 120),
+      guardianEmail: guardianEmail.trim().toLowerCase().slice(0, 254),
+      policyVersion: '2026-11-14',
+    } };
   }
 
   try {
@@ -52,11 +62,13 @@ export async function POST() {
         name: true,
         role: true,
         avatarUrl: true,
+        timeZone: true,
       },
     });
 
     return NextResponse.json({ profile });
-  } catch {
+  } catch (error) {
+    console.error('Profile sync failed:', error);
     return NextResponse.json(
       { error: 'Unable to load your profile.' },
       { status: 500 }
