@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { SUBJECT_GROUPS, SUBJECT_OPTIONS } from '../../lib/subject-catalog';
 import TutorTrustSettings from './TutorTrustSettings';
 import TutorAvailabilitySettings from './TutorAvailabilitySettings';
@@ -99,7 +100,6 @@ export default function TutorDashboard({ user }) {
     bio: '',
     subjects: [],
     hourlyRateETB: '',
-    hourlyRateUSD: '',
     openForStudents: false,
   });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -131,7 +131,7 @@ export default function TutorDashboard({ user }) {
       title: profile.title || '', university: profile.university || '',
       experienceYears: profile.experienceYears ?? '', location: profile.location || '',
       bio: profile.bio || '', subjects: profile.subjects || [],
-      hourlyRateETB: profile.hourlyRateETB ?? '', hourlyRateUSD: profile.hourlyRateUSD ?? '',
+      hourlyRateETB: profile.hourlyRateETB ?? '',
       openForStudents: profile.openForStudents !== false,
     });
   }, [profile]);
@@ -159,8 +159,7 @@ export default function TutorDashboard({ user }) {
       location: profileForm.location,
       bio: profileForm.bio,
       subjects: profileForm.subjects,
-      hourlyRateETB: profileForm.hourlyRateETB.trim() === '' ? null : Number(profileForm.hourlyRateETB),
-      hourlyRateUSD: profileForm.hourlyRateUSD.trim() === '' ? null : Number(profileForm.hourlyRateUSD),
+      hourlyRateETB: String(profileForm.hourlyRateETB ?? '').trim() === '' ? null : Number(profileForm.hourlyRateETB),
       openForStudents: profileForm.openForStudents,
     };
 
@@ -470,19 +469,23 @@ export default function TutorDashboard({ user }) {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() =>
-                              window.open(
-                                lesson.meetingUrl,
-                                '_blank'
-                              )
-                            }
-                            disabled={!lesson.meetingUrl}
-                            className="btn btn-primary text-xs px-3.5 py-1.5 rounded-full font-bold flex items-center gap-1 shadow-xs"
-                          >
-                            <Video className="w-3.5 h-3.5" />
-                            <span>{lesson.meetingUrl ? 'Start Room' : 'Meeting link unavailable'}</span>
-                          </button>
+                          {lesson.meetingUrl ? (
+                            <a
+                              href={`/lessons/${lesson.id}`}
+                              className="btn btn-primary text-xs px-3.5 py-1.5 rounded-full font-bold flex items-center gap-1 shadow-xs"
+                            >
+                              <Video className="w-3.5 h-3.5" />
+                              <span>Enter Session Room</span>
+                            </a>
+                          ) : (
+                            <button
+                              disabled
+                              className="btn btn-primary text-xs px-3.5 py-1.5 rounded-full font-bold flex items-center gap-1 shadow-xs opacity-50 cursor-not-allowed"
+                            >
+                              <Video className="w-3.5 h-3.5" />
+                              <span>Meeting link unavailable</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -840,12 +843,9 @@ export default function TutorDashboard({ user }) {
                 </div>
 
                 <div className="flex gap-2 pt-2 border-t border-slate-200">
-                  <button
-                    onClick={() => setActiveTab('schedule')}
-                    className="w-full btn btn-outline text-xs py-2 font-bold"
-                  >
-                    View lessons
-                  </button>
+                  <Link href={`/tutor/students/${encodeURIComponent(student.id)}`} className="w-full btn btn-primary text-center text-xs py-2 font-bold">
+                    Open student workspace
+                  </Link>
                 </div>
                 <ReportBlockActions targetUserId={student.id} onBlocked={(studentId) => setStudents((current) => current.filter((item) => item.id !== studentId))} />
               </div>
@@ -942,7 +942,7 @@ export default function TutorDashboard({ user }) {
           Messaging is not available yet.
         </div>
       )}
-      <TutorDashboardModals {...{ editProfileModalOpen, setEditProfileModalOpen, profileSaveSuccess, isSavingProfile, handleSaveProfile, profileForm, setProfileForm, subjectGroups, assignmentModalOpen, setAssignmentModalOpen, assignmentForm, setAssignmentForm, assignmentSaving, assignmentMessage, handleCreateAssignment, students, gradeModalAssignment, setGradeModalAssignment, gradeScoreInput, setGradeScoreInput, handleSaveGrade }} />
+      <TutorDashboardModals {...{ editProfileModalOpen, setEditProfileModalOpen, profileSaveSuccess, isSavingProfile, handleSaveProfile, profileForm, setProfileForm, selectedSubjects, subjectGroups, assignmentModalOpen, setAssignmentModalOpen, assignmentForm, setAssignmentForm, assignmentSaving, assignmentMessage, handleCreateAssignment, students, gradeModalAssignment, setGradeModalAssignment, gradeScoreInput, setGradeScoreInput, handleSaveGrade }} />
 
     </div>
   );

@@ -11,11 +11,13 @@ function toTime(value) { return `${String(Math.floor(value / 60)).padStart(2, '0
 export async function GET() {
   const tutor = await requireUser('TUTOR');
   if (!tutor) return NextResponse.json({ error: 'Tutor access required.' }, { status: 403 });
-  const [profile, slots] = await Promise.all([
-    prisma.user.findUnique({ where: { id: tutor.id }, select: { timeZone: true } }),
-    prisma.availability.findMany({ where: { tutorId: tutor.id }, orderBy: [{ weekday: 'asc' }, { startMinute: 'asc' }] }),
-  ]);
-  return NextResponse.json({ timeZone: profile.timeZone, slots: slots.map((slot) => ({ weekday: slot.weekday, startTime: toTime(slot.startMinute), endTime: toTime(slot.endMinute) })) });
+  try {
+    const slots = await prisma.availability.findMany({ where: { tutorId: tutor.id }, orderBy: [{ weekday: 'asc' }, { startMinute: 'asc' }] });
+    return NextResponse.json({ timeZone: tutor.timeZone || 'Africa/Addis_Ababa', slots: slots.map((slot) => ({ weekday: slot.weekday, startTime: toTime(slot.startMinute), endTime: toTime(slot.endMinute) })) });
+  } catch (error) {
+    console.error('Tutor availability load failed:', error);
+    return NextResponse.json({ error: 'Unable to load availability.' }, { status: 500 });
+  }
 }
 
 export async function PUT(request) {

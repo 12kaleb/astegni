@@ -39,6 +39,7 @@ export async function POST(request) {
         emailRedirectTo: new URL('/auth/confirm', origin).toString(),
         data: {
           full_name: signup.name,
+          phone: signup.phone,
           requested_role: signup.role,
           grade_level: signup.gradeLevel || 'Grade 11',
           is_minor: Boolean(signup.isMinor),
@@ -52,11 +53,13 @@ export async function POST(request) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
+    let applicationUserId = null;
     if (data.session && data.user?.email) {
       const profileData = {
         supabaseAuthId: data.user.id,
         email: data.user.email,
         name: signup.name,
+        phone: signup.phone,
         role: signup.role === 'tutor' ? 'TUTOR' : 'STUDENT',
         isMinor: Boolean(signup.isMinor),
       };
@@ -69,15 +72,18 @@ export async function POST(request) {
         } };
       }
 
-      await prisma.user.upsert({
+      const applicationUser = await prisma.user.upsert({
         where: { supabaseAuthId: data.user.id },
         create: profileData,
-        update: { email: data.user.email, name: signup.name },
+        update: { email: data.user.email, name: signup.name, phone: signup.phone },
+        select: { id: true },
       });
+      applicationUserId = applicationUser.id;
     }
 
     return NextResponse.json({
       name: signup.name,
+      id: applicationUserId,
       role: signup.role,
       hasSession: Boolean(data.session),
       confirmationRequired: !data.session,

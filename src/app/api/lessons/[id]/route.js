@@ -8,6 +8,47 @@ import { notifyLessonConfirmed } from '../../../../lib/notifications';
 import { reportException } from '../../../../lib/observability';
 import { createMeetingUrl } from '../../../../lib/video';
 
+/** GET /api/lessons/:id — fetch a single lesson for the session page */
+export async function GET(request, context) {
+  try {
+    const actor = await requireUser();
+    if (!actor || !['STUDENT', 'TUTOR'].includes(actor.role)) {
+      return NextResponse.json({ error: 'Student or tutor access required.' }, { status: 403 });
+    }
+    const { id } = await context.params;
+    const lesson = await prisma.lesson.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        topic: true,
+        scheduledAt: true,
+        durationMins: true,
+        status: true,
+        timeZone: true,
+        meetingUrl: true,
+        startedAt: true,
+        completedAt: true,
+        studentId: true,
+        tutorId: true,
+        student: { select: { id: true, name: true, timeZone: true } },
+        tutor: { select: { id: true, name: true, timeZone: true } },
+        review: { select: { id: true, rating: true, comment: true, createdAt: true } },
+      },
+    });
+    if (!lesson) return NextResponse.json({ error: 'Lesson not found.' }, { status: 404 });
+    // Only the student or tutor on this lesson may view it
+    const isParticipant =
+      (actor.role === 'STUDENT' && lesson.studentId === actor.id) ||
+      (actor.role === 'TUTOR' && lesson.tutorId === actor.id);
+    if (!isParticipant) return NextResponse.json({ error: 'Access denied.' }, { status: 403 });
+    return NextResponse.json({ lesson });
+  } catch (error) {
+    reportException('lessons.get', error);
+    return NextResponse.json({ error: 'Unable to load this lesson.' }, { status: 500 });
+  }
+}
+
 export async function PATCH(request, context) {
   try {
     const actor = await requireUser();
@@ -59,6 +100,23 @@ export async function PATCH(request, context) {
           return { error: 'A participant now has another lesson during that time.', status: 409 };
         }
         const updated = await tx.lesson.update({ where: { id }, data: { status: 'CONFIRMED', pendingActionById: null, meetingUrl: lesson.meetingUrl || createMeetingUrl() } });
+        return { lesson: updated };
+      }
+
+      if (input.action === 'START_SESSION') {
+        if (!isTutor || lesson.status !== 'CONFIRMED') return { error: 'Only the tutor can start a confirmed lesson.', status: 409 };
+        const updated = await tx.lesson.update({
+          where: { id },
+          data: { startedAt: lesson.startedAt || new Date(), meetingUrl: lesson.meetingUrl || createMeetingUrl() },
+        });
+        return { lesson: updated };
+      }
+
+      if (input.action === 'COMPLETE_SESSION') {
+        if (!isTutor || lesson.status !== 'CONFIRMED' || !lesson.startedAt) {
+          return { error: 'Only the tutor can complete a lesson after starting it.', status: 409 };
+        }
+        const updated = await tx.lesson.update({ where: { id }, data: { status: 'COMPLETED', completedAt: new Date() } });
         return { lesson: updated };
       }
 

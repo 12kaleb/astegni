@@ -4,13 +4,13 @@ import { signupSchema, tutorProfileUpdateSchema } from './validation';
 describe('signupSchema', () => {
   it('accepts a valid adult student signup', () => {
     expect(signupSchema.safeParse({
-      name: 'Aster Tesfaye', email: 'aster@example.com', password: 'secure-pass-123', role: 'student',
+      name: 'Aster Tesfaye', email: 'aster@example.com', phone: '+251 911 234 567', password: 'secure-pass-123', role: 'student',
     }).success).toBe(true);
   });
 
   it('requires guardian details for minors', () => {
     expect(signupSchema.safeParse({
-      name: 'Aster Tesfaye', email: 'aster@example.com', password: 'secure-pass-123', role: 'student', isMinor: true,
+      name: 'Aster Tesfaye', email: 'aster@example.com', phone: '+251 911 234 567', password: 'secure-pass-123', role: 'student', isMinor: true,
     }).success).toBe(false);
   });
 });

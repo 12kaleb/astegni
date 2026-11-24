@@ -2,7 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { SUBJECT_GROUPS } from '../../lib/subject-catalog';
+import TutorStudentChat from '../../components/TutorStudentChat';
+import TutorStudentCurriculum from '../../components/TutorStudentCurriculum';
 import {
   Bell,
   ArrowRight,
@@ -59,6 +62,7 @@ export default function StudentDashboard({
   const [reviewMessage, setReviewMessage] = useState('');
 
   const [recommendedTutors, setRecommendedTutors] = useState([]);
+  const [chatTutors, setChatTutors] = useState([]);
   const [maxTutorRate, setMaxTutorRate] = useState(1000);
   const affordableRecommendedTutors = recommendedTutors
     .filter((tutor) => {
@@ -93,14 +97,27 @@ export default function StudentDashboard({
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
 
-  async function startLessonPayment(lesson, currency) {
+  useEffect(() => {
+    let active = true;
+    fetch('/api/students/tutors', { cache: 'no-store' })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not load tutor conversations.');
+        return result;
+      })
+      .then((result) => { if (active) setChatTutors(Array.isArray(result.tutors) ? result.tutors : []); })
+      .catch((error) => { if (active) setSubjectsError(error.message); });
+    return () => { active = false; };
+  }, []);
+
+  async function startLessonPayment(lesson) {
     setPayingLessonId(lesson.id);
     setPaymentError('');
     try {
       const response = await fetch('/api/payments/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lessonId: lesson.id, currency }),
+        body: JSON.stringify({ lessonId: lesson.id, currency: 'ETB' }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Unable to start checkout.');
@@ -607,14 +624,24 @@ export default function StudentDashboard({
 
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-3 pt-2">
-                <button
-                  onClick={() => nextLesson ? onJoinLesson(nextLesson) : onFindTutor()}
-                  disabled={Boolean(nextLesson && !nextLesson.meetingUrl)}
-                  className="btn btn-primary px-6 py-2.5 rounded-full text-xs font-bold shadow-md shadow-[#E05A47]/20 flex items-center gap-2"
-                >
-                  {nextLesson ? <Video className="w-4 h-4" /> : <User className="w-4 h-4" />}
-                  <span>{nextLesson ? (nextLesson.status === 'PENDING' ? 'Awaiting tutor confirmation' : nextLesson.meetingUrl ? 'Join Video Classroom' : 'Meeting link unavailable') : 'Find a tutor'}</span>
-                </button>
+                {nextLesson && nextLesson.meetingUrl ? (
+                  <a
+                    href={`/lessons/${nextLesson.id}`}
+                    className="btn btn-primary px-6 py-2.5 rounded-full text-xs font-bold shadow-md shadow-[#E05A47]/20 flex items-center gap-2"
+                  >
+                    <Video className="w-4 h-4" />
+                    <span>Enter Session Room</span>
+                  </a>
+                ) : (
+                  <button
+                    onClick={() => nextLesson ? onJoinLesson(nextLesson) : onFindTutor()}
+                    disabled={Boolean(nextLesson && !nextLesson.meetingUrl)}
+                    className="btn btn-primary px-6 py-2.5 rounded-full text-xs font-bold shadow-md shadow-[#E05A47]/20 flex items-center gap-2"
+                  >
+                    {nextLesson ? <Video className="w-4 h-4" /> : <User className="w-4 h-4" />}
+                    <span>{nextLesson ? (nextLesson.status === 'PENDING' ? 'Awaiting tutor confirmation' : 'Meeting link unavailable') : 'Find a tutor'}</span>
+                  </button>
+                )}
 
                 {nextLesson && <button
                   onClick={() => setActiveSubTab('messages')}
@@ -849,6 +876,44 @@ export default function StudentDashboard({
 
           {/* RIGHT 4 COLUMNS: Recommended Tutors & Activity & Chat */}
           <div className="lg:col-span-4 space-y-6">
+            {/* Selected tutors and their learning workspaces */}
+            <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
+              <div>
+                <h3 className="font-serif text-xl text-[#182238] font-normal">Your tutors</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Continue learning with tutors you selected.</p>
+              </div>
+              {!chatTutors.length && (
+                <div className="rounded-2xl bg-[#FAF7F2] p-4 text-center">
+                  <p className="text-xs text-slate-500">You haven’t selected a tutor yet.</p>
+                  <button onClick={onFindTutor} className="mt-3 text-xs font-bold text-[#E05A47] hover:underline">
+                    Browse tutors <ArrowRight className="inline h-3 w-3" />
+                  </button>
+                </div>
+              )}
+              {chatTutors.map((tutor) => (
+                <div key={tutor.id} className="flex items-center gap-3 rounded-2xl border border-[#F0ECE5] p-3">
+                  <Image
+                    src={tutor.avatarUrl || '/tutor_female_1.jpg'}
+                    alt=""
+                    width={44}
+                    height={44}
+                    className="h-11 w-11 rounded-xl object-cover"
+                    onError={(event) => { event.currentTarget.src = '/tutor_female_1.jpg'; }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-[#182238]">{tutor.name}</p>
+                    <p className="text-[11px] text-slate-500">Your tutor</p>
+                  </div>
+                  <Link
+                    href={`/student/workspace/${encodeURIComponent(tutor.id)}`}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-[#E05A47] px-3 py-2 text-[11px] font-bold text-white hover:bg-[#c94938]"
+                  >
+                    Enter workspace <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </div>
+              ))}
+            </div>
+
             {/* A. RECOMMENDED TUTORS CARD (Ethiopian Verified Tutors) */}
             <div className="bg-white rounded-3xl border border-[#EAE6DF] p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-4">
               <div className="flex items-center justify-between">
@@ -1047,20 +1112,16 @@ export default function StudentDashboard({
 
                 <div className="flex items-center gap-2">
                   {lesson.payment?.status === 'PAID' ? (
-                    <span className="text-[10px] font-bold text-emerald-700">Paid in {lesson.payment.currency}</span>
-                  ) : lesson.payment?.status === 'PENDING' && lesson.payment.checkoutUrl ? (
-                    <a href={lesson.payment.checkoutUrl} className="btn btn-outline text-xs px-3 py-2 font-bold">Resume checkout · {lesson.payment.currency}</a>
-                  ) : lesson.status === 'CONFIRMED' && ['ETB', 'USD'].map((currency) => {
-                    const rate = currency === 'ETB' ? lesson.tutor?.tutorProfile?.hourlyRateETB : lesson.tutor?.tutorProfile?.hourlyRateUSD;
-                    if (!rate) return null;
-                    const amount = rate * lesson.durationMins / 60;
-                    const priceLabel = currency === 'ETB' ? `${amount.toLocaleString()} ETB` : `$${amount.toFixed(2)}`;
-                    return (
-                      <button key={currency} disabled={payingLessonId === lesson.id || lesson.payment?.status === 'PENDING'} onClick={() => startLessonPayment(lesson, currency)} className="btn btn-outline text-xs px-3 py-2 font-bold disabled:opacity-50">
-                        {payingLessonId === lesson.id ? 'Starting…' : lesson.payment?.status === 'PENDING' ? `Checkout in ${lesson.payment.currency}` : `Pay ${priceLabel}`}
-                      </button>
-                    );
-                  })}
+                    <span className="text-[10px] font-bold text-emerald-700">Paid</span>
+                  ) : lesson.payment?.status === 'PENDING' && lesson.payment.currency === 'ETB' && lesson.payment.checkoutUrl ? (
+                    <a href={lesson.payment.checkoutUrl} className="btn btn-outline text-xs px-3 py-2 font-bold">Resume ETB checkout</a>
+                  ) : lesson.payment?.status === 'PENDING' ? (
+                    <span className="text-[10px] text-amber-700">Payment pending</span>
+                  ) : lesson.status === 'CONFIRMED' && lesson.tutor?.tutorProfile?.hourlyRateETB > 0 ? (
+                    <button disabled={payingLessonId === lesson.id} onClick={() => startLessonPayment(lesson)} className="btn btn-outline text-xs px-3 py-2 font-bold disabled:opacity-50">
+                      {payingLessonId === lesson.id ? 'Starting…' : `Pay ${((lesson.tutor.tutorProfile.hourlyRateETB * lesson.durationMins) / 60).toLocaleString()} ETB`}
+                    </button>
+                  ) : null}
                   <button
                     onClick={() =>
                       lesson.meetingUrl
@@ -1263,8 +1324,10 @@ export default function StudentDashboard({
       )}
 
       {activeSubTab === 'messages' && (
-        <div className="rounded-3xl border border-[#EAE6DF] bg-white p-8 text-center text-sm text-slate-500">
-          Messaging is not available yet.
+        <div className="space-y-5">
+          <div><h2 className="font-serif text-2xl text-[#0A1428]">Tutor Workspaces</h2><p className="mt-1 text-xs text-slate-500">Chat with your tutors and follow the learning plan they create for you.</p></div>
+          {!chatTutors.length && <div className="rounded-3xl border border-[#EAE6DF] bg-white p-8 text-center text-sm text-slate-500">Select a tutor to start a conversation.</div>}
+          {chatTutors.map((tutor) => <div key={tutor.id} className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]"><TutorStudentChat tutorId={tutor.id} studentId={user.id} user={user} /><TutorStudentCurriculum tutorId={tutor.id} studentId={user.id} /></div>)}
         </div>
       )}
       {/* 9. ASSIGNMENT DETAILS MODAL */}

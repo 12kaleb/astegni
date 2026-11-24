@@ -14,7 +14,7 @@ export async function GET() {
     const [selections, blocks] = await Promise.all([
       prisma.tutorSelection.findMany({
         where: { studentId: student.id },
-        select: { tutor: { select: { id: true, tutorProfile: { select: { id: true } } } } },
+        select: { tutor: { select: { id: true, name: true, email: true, avatarUrl: true, tutorProfile: { select: { id: true } } } } },
       }),
       prisma.userBlock.findMany({ where: { OR: [{ blockerId: student.id }, { blockedId: student.id }] }, select: { blockerId: true, blockedId: true } }),
     ]);
@@ -22,6 +22,7 @@ export async function GET() {
 
     return NextResponse.json({
       tutorIds: selections.filter((selection) => !blockedUserIds.has(selection.tutor.id)).map((selection) => selection.tutor.tutorProfile?.id).filter(Boolean),
+      tutors: selections.filter((selection) => !blockedUserIds.has(selection.tutor.id)).map(({ tutor }) => ({ id: tutor.id, name: tutor.name, email: tutor.email, avatarUrl: tutor.avatarUrl })),
     });
   } catch (error) {
     console.error('Failed to load selected tutors:', error);

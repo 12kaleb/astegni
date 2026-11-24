@@ -43,6 +43,12 @@ export default function AdminSafetyReview() {
       <div className="space-y-3"><h3 className="text-sm font-bold">Tutor documents ({documents.length})</h3>
         {documents.map((document) => <div key={document.id} className="rounded-xl border border-slate-200 p-3 text-sm">
           <p className="font-semibold">{document.tutor.name} · {document.type.replaceAll('_', ' ')}</p><p className="text-xs text-slate-500">{document.tutor.email} · {(document.sizeBytes / 1024 / 1024).toFixed(1)} MB</p>
+          {document.signedUrl && <details className="mt-3">
+            <summary className="cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold">Preview document before review</summary>
+            <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+              {document.contentType === 'application/pdf' ? <iframe title={`${document.type.replaceAll('_', ' ')} for ${document.tutor.name}`} src={document.signedUrl} className="h-96 w-full" /> : <img src={document.signedUrl} alt={`${document.type.replaceAll('_', ' ')} for ${document.tutor.name}`} className="max-h-96 w-full object-contain" />}
+            </div>
+          </details>}
           <div className="mt-3 flex gap-2">{document.signedUrl && <a href={document.signedUrl} target="_blank" rel="noreferrer" className="rounded-lg border px-3 py-1.5 text-xs font-semibold">Open file</a>}
             {['APPROVED', 'REJECTED'].map((status) => <button key={status} disabled={status === 'APPROVED' && !document.signedUrl} onClick={() => review(`/api/admin/verification-documents/${document.id}`, { status }).catch((reason) => setError(reason.message))} className="rounded-lg border px-3 py-1.5 text-xs font-semibold disabled:opacity-40">{status === 'APPROVED' ? 'Approve document' : 'Reject'}</button>)}</div>
         </div>)}

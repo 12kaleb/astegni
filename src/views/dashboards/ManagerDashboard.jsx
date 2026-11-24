@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import TutorDocumentReview from './TutorDocumentReview';
 import {
   TrendingUp, CheckSquare, Target, ArrowRight, FileText,
   Users, RefreshCw, AlertTriangle, Check, X, GraduationCap,
@@ -111,6 +112,7 @@ export default function ManagerDashboard() {
   return (
     <div className="min-h-screen bg-[#FAF7F2] py-6 sm:py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-[1240px] mx-auto space-y-7 text-[#182238]">
+        <TutorDocumentReview />
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

@@ -13,8 +13,18 @@ function parseUrl(name, value) {
   }
 }
 
+function isLoopbackHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function validateServerEnv() {
-  if (process.env.VERCEL !== '1' && process.env.TRUST_PROXY_HEADERS !== 'true') {
+  const localHttpMode = process.env.ALLOW_INSECURE_LOCAL_HTTP === 'true' && isLoopbackHttpUrl(process.env.NEXT_PUBLIC_SITE_URL);
+  if (process.env.VERCEL !== '1' && process.env.TRUST_PROXY_HEADERS !== 'true' && !localHttpMode) {
     const message = 'No trusted client IP proxy is configured. IP-based limits will share one bucket. Configure a trusted proxy to overwrite x-forwarded-for or x-real-ip and set TRUST_PROXY_HEADERS=true.';
     if (process.env.NODE_ENV === 'production') {
       throw new Error(`Non-Vercel production cannot start. ${message}`);
@@ -56,7 +66,11 @@ export function validateServerEnv() {
       throw new Error('Production DIRECT_URL must use Supabase’s direct database hostname for migrations.');
     }
     const siteUrl = parseUrl('NEXT_PUBLIC_SITE_URL', process.env.NEXT_PUBLIC_SITE_URL);
-    if (siteUrl.protocol !== 'https:') {
+    const localHttpAllowed =
+      process.env.ALLOW_INSECURE_LOCAL_HTTP === 'true' &&
+      siteUrl.protocol === 'http:' &&
+      ['localhost', '127.0.0.1', '[::1]'].includes(siteUrl.hostname);
+    if (siteUrl.protocol !== 'https:' && !localHttpAllowed) {
       throw new Error('Production NEXT_PUBLIC_SITE_URL must use HTTPS.');
     }
   }

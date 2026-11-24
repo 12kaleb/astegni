@@ -9,7 +9,7 @@ export const SUBJECT_GROUPS = [
   },
   {
     name: 'Languages & Humanities',
-    subjects: ['English', 'Amharic', 'Afaan Oromo', 'Literature', 'History', 'Geography', 'Philosophy'],
+    subjects: ['English', 'Afaan Oromo', 'Literature', 'History', 'Geography', 'Philosophy'],
   },
   {
     name: 'Business & Social Sciences',

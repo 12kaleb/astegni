@@ -7,14 +7,12 @@ import HomeFaq from '../components/HomeFaq';
 import HomeImpactStats from '../components/HomeImpactStats';
 import Image from 'next/image';
 import { useApiResource } from '../lib/use-api-resource';
-import { useLanguage } from '../lib/i18n';
 
 const selectPlatformStats = (result) => result;
 
 export default function HomeView({ initialTutors = [], setActiveTab, onSelectTutor, onViewTutor, onOpenAuth, onSearchTutors, selectedTutorIds = [] }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [availableTutors] = useState(initialTutors);
-  const { t } = useLanguage();
   const tutorsLoading = false;
   const { data: platformStats, error: statsError, loading: statsLoading } = useApiResource('/api/public/stats', selectPlatformStats);
 
@@ -67,11 +65,11 @@ export default function HomeView({ initialTutors = [], setActiveTab, onSelectTut
               </div>
 
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-[#0A1428] leading-[1.1] tracking-tight">
-                {t('heroTitle')}
+                The right tutor can change everything.
               </h1>
 
               <p className="text-base md:text-lg text-[#64748B] leading-relaxed max-w-xl">
-                {t('heroDescription')}
+                Find verified tutors in Addis Ababa and compare profiles, subjects, experience, languages, and hourly rates.
               </p>
 
               {/* Search Bar Widget */}
@@ -83,7 +81,7 @@ export default function HomeView({ initialTutors = [], setActiveTab, onSelectTut
                   <Search className="w-5 h-5 text-[#E05A47]" />
                   <input
                     type="text"
-                    placeholder={t('searchSubject')}
+                    placeholder="Search by subject (Mathematics, Physics)…"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full text-sm font-medium text-[#0A1428] placeholder:text-[#94A3B8] focus:outline-none bg-transparent"
@@ -104,7 +102,7 @@ export default function HomeView({ initialTutors = [], setActiveTab, onSelectTut
                   type="submit"
                   className="btn btn-primary btn-md w-full md:w-auto px-6 font-bold shadow-md"
                 >
-                  {t('tutors')}
+                  Find Tutors
                 </button>
               </form>
 

@@ -25,6 +25,12 @@ enum LessonStatus {
   CANCELLED
 }
 
+enum LessonSessionItemType {
+  CHAT
+  AGENDA
+  NOTE
+}
+
 enum TicketPriority {
   URGENT
   HIGH
@@ -131,6 +137,12 @@ model User {
   authoredReviews Review[] @relation("ReviewAuthor")
   tutorReviews Review[] @relation("TutorReviews")
   payments Payment[]
+  lessonSessionItems LessonSessionItem[]
+  sentTutorStudentMessages TutorStudentMessage[] @relation("ConversationMessageAuthor")
+  studentConversationMessages TutorStudentMessage[] @relation("StudentConversationMessages")
+  tutorConversationMessages TutorStudentMessage[] @relation("TutorConversationMessages")
+  studentCurriculumItems StudentCurriculumItem[] @relation("StudentCurriculum")
+  tutorCurriculumItems StudentCurriculumItem[] @relation("TutorCurriculum")
 }
 
 // -------------------------------------------------------------
@@ -149,7 +161,6 @@ model TutorProfile {
   languages       String[] @default([])
   subjects         String[] // e.g. ["GCSE Mathematics", "Physics"]
   hourlyRateETB    Int?
-  hourlyRateUSD    Int?
   bio              String?
   rating           Float?
   reviewsCount     Int      @default(0)
@@ -198,6 +209,8 @@ model Lesson {
   cancelledById String?
   cancellationReason String?
   reminderSentAt DateTime?
+  startedAt DateTime?
+  completedAt DateTime?
 
   studentId    String
   student      User         @relation("StudentLessons", fields: [studentId], references: [id])
@@ -205,10 +218,55 @@ model Lesson {
   tutor        User         @relation("TutorLessons", fields: [tutorId], references: [id])
   review       Review?
   payment      Payment?
+  sessionItems LessonSessionItem[]
 
   @@index([tutorId, scheduledAt])
   @@index([studentId, scheduledAt])
   @@index([status, scheduledAt, reminderSentAt])
+}
+
+model LessonSessionItem {
+  id        String                 @id @default(cuid())
+  lessonId  String
+  lesson    Lesson                 @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User                   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  type      LessonSessionItemType
+  text      String                 @db.VarChar(2000)
+  done      Boolean                @default(false)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  @@index([lessonId, type, createdAt])
+  @@index([authorId, type])
+}
+
+model TutorStudentMessage {
+  id        String   @id @default(cuid())
+  studentId String
+  student   User     @relation("StudentConversationMessages", fields: [studentId], references: [id], onDelete: Cascade)
+  tutorId   String
+  tutor     User     @relation("TutorConversationMessages", fields: [tutorId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation("ConversationMessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  text      String   @db.VarChar(2000)
+  createdAt DateTime @default(now())
+
+  @@index([studentId, tutorId, createdAt])
+}
+
+model StudentCurriculumItem {
+  id        String   @id @default(cuid())
+  studentId String
+  student   User     @relation("StudentCurriculum", fields: [studentId], references: [id], onDelete: Cascade)
+  tutorId   String
+  tutor     User     @relation("TutorCurriculum", fields: [tutorId], references: [id], onDelete: Cascade)
+  text      String   @db.VarChar(500)
+  done      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId, tutorId, createdAt])
 }
 
 model Availability {
@@ -240,6 +298,9 @@ model Assignment {
   tutorId   String?
   tutor     User?    @relation("TutorAssignments", fields: [tutorId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
+  filePath  String?  @unique
+  fileName  String?
+  fileSize  Int?
 
   @@index([studentId, dueDate])
 }

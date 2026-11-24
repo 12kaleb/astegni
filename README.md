@@ -49,7 +49,6 @@ Astegni is a tutoring marketplace built with Next.js 16, React 19, Supabase Auth
 | `RESEND_API_KEY`, `EMAIL_FROM` | Optional booking, confirmation, and reminder email delivery. Configure a verified sender domain in Resend. |
 | `JITSI_DOMAIN` | Optional Jitsi host (defaults to `meet.jit.si`). |
 | `CHAPA_SECRET_KEY`, `CHAPA_WEBHOOK_SECRET` | Optional local ETB checkout and webhook verification. Register `/api/webhooks/chapa` in Chapa. |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Optional international USD Checkout. Register `/api/webhooks/stripe` for Checkout Session completion and expiry events. |
 | `CRON_SECRET`, `LESSON_REMINDER_WINDOW_MINUTES` | Protect and configure the reminder job. Call `/api/cron/lesson-reminders` hourly with `Authorization: Bearer <CRON_SECRET>`. |
 
 Booking emails and payment providers remain inactive until their optional credentials are configured. Payment completion is recorded only after a signed webhook or a server-side Chapa transaction verification. Student review submissions are limited to completed lessons; public tutor reviews do not expose the student's name.
@@ -78,9 +77,19 @@ npm run db:deploy       # Apply committed migrations
 
 ## Deployment notes
 
-- Set the database, Supabase, and canonical site URL variables in the deployment environment.
-- Use Supabase's pooled connection string for `DATABASE_URL` on serverless hosts and the direct database connection for `DIRECT_URL`.
-- Run `npm run db:deploy` as part of the release process before serving code that depends on a new migration.
+- The browser UI and API are currently one Next.js application. The UI lives under `src/app` and `src/views`; API route handlers live under `src/app/api`. Authentication, database access, and some page data loading are shared, so this repository does not yet have a separately deployable API service.
+- For the simplest production deployment, build and run the included Docker image. It uses Next.js standalone output and contains the UI and API in one small production server. Set the public Supabase URL, publishable key, and canonical site URL at **build time**; they are embedded in browser assets. Set all server secrets in `.env.production` at runtime.
+
+  ```bash
+  Copy-Item .env.example .env.production
+  # Edit .env.production with production values, then:
+  docker compose --env-file .env.production build
+  docker compose --env-file .env.production --profile release run --rm migrate
+  docker compose --env-file .env.production up -d app
+  ```
+
+- Use Supabase's pooled connection string for `DATABASE_URL` and the direct database connection for `DIRECT_URL`. Run the migration command once for each release before starting the updated app.
+- To host the UI and API as independent services later, first move the API handlers and their authorization/data dependencies into a standalone backend, then point the frontend API calls at that service and configure CORS and Supabase token verification there. The current Docker setup keeps them together to avoid breaking the shared auth and server-rendered data flows.
 - Keep user data access and role checks in server code; Prisma queries do not inherit Supabase RLS policies.
 - Configure Supabase Auth rate limits and CAPTCHA/bot protection as well as Astegni's application rate limits.
 - Before enabling uploads, create a private `verification-documents` bucket (8 MB, PDF/JPEG/PNG) and a public `avatars` bucket (2 MB, JPEG/PNG/WebP), then set `SUPABASE_SECRET_KEY`. Upload endpoints return `503` until this configuration exists.

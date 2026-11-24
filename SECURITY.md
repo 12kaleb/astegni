@@ -31,13 +31,13 @@ Never put database URLs, Supabase secret keys, or service-role keys in `NEXT_PUB
 
 ## Phase 4 trust and safety
 
-- Tutor evidence is stored in the private `verification-documents` Storage bucket. Uploads accept signature-checked PDF, JPEG, or PNG files up to 8 MB. Admin preview links expire after 60 seconds. The app requires both an approved national ID and degree certificate before the tutor verification route can approve a tutor.
+- Tutor evidence is stored in the private `verification-documents` Storage bucket. Uploads accept signature-checked PDF, JPEG, or PNG files up to 8 MB. Admin, manager, and support specialist reviewers can preview pending documents using signed links that expire after 60 seconds. The app requires both an approved national ID and degree certificate before the tutor verification route can approve a tutor.
 - Avatars are stored in the public `avatars` bucket and accept signature-checked JPEG, PNG, or WebP files up to 2 MB. Do not upload sensitive information as an avatar.
 - Configure both buckets in Supabase before enabling uploads: `verification-documents` private with an 8 MB limit and allowed PDF/JPEG/PNG types; `avatars` public with a 2 MB limit and allowed JPEG/PNG/WebP types. Set the server-only `SUPABASE_SECRET_KEY` (or legacy service role key) in the deployment environment. Upload routes return `503` until it is set.
 - Reports and blocks are limited to student/tutor pairs. Blocks prevent new tutor selections and tutor-created lessons in either direction. Admins can review reports in the dashboard. Existing lessons and records are retained.
 - Signup records a self-declared under-18 status and guardian contact as a pending consent request. Admin approval should happen only after authorization is independently confirmed with the guardian. Pending requests cannot select tutors or be scheduled by tutors. This workflow is manual because the app has no trusted guardian email verification service yet; the declaration is not age verification, so design an age-assurance process before launch.
 - Terms and privacy pages are working drafts. Complete the operator identity, retention periods, contact and data-transfer details, and obtain Ethiopian legal review before launch. The pages do not by themselves establish legal compliance.
-- Admin actions for tutor verification, invitation issuance and acceptance, document review, guardian consent review, and report handling are written to `AuditLog`. Admins can read the latest 100 events from `/api/admin/audit-logs`.
+- Actions for tutor verification, invitation issuance and acceptance, document review, guardian consent review, and report handling are written to `AuditLog`. Admins can read the latest 100 events from `/api/admin/audit-logs`.
 
 ## Phase 5 booking flow
 

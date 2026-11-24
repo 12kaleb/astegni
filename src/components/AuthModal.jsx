@@ -14,6 +14,7 @@ export default function AuthModal({ initialMode = 'signin', onClose, onLoginSucc
   // Form fields
   const [fullName, setFullName] = useState('');
   const [emailOrPhone, setEmailOrPhone] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [selectedGrade, setSelectedGrade] = useState('Grade 11');
   const [isMinor, setIsMinor] = useState(false);
@@ -46,8 +47,9 @@ export default function AuthModal({ initialMode = 'signin', onClose, onLoginSucc
           return;
         }
 
-        // Role is resolved by page.js via onAuthStateChange → /api/auth/profile
         onClose();
+        // Reload on the dashboard so its profile sync reads the persisted Supabase session.
+        window.location.assign('/dashboard');
         return;
       }
   
@@ -57,6 +59,7 @@ export default function AuthModal({ initialMode = 'signin', onClose, onLoginSucc
         body: JSON.stringify({
           name: fullName.trim(),
           email: emailOrPhone.trim(),
+          phone: phone.trim(),
           password,
           role,
           gradeLevel: selectedGrade,
@@ -73,7 +76,7 @@ export default function AuthModal({ initialMode = 'signin', onClose, onLoginSucc
       }
   
       if (result.hasSession) {
-        onLoginSuccess({ name: result.name, role: result.role });
+        onLoginSuccess({ id: result.id, name: result.name, role: result.role });
         onClose();
         return;
       }
@@ -111,7 +114,6 @@ export default function AuthModal({ initialMode = 'signin', onClose, onLoginSucc
                 <GraduationCap className="w-5 h-5" />
               </div>
               <span className="font-extrabold text-xl tracking-tight">Astegni</span>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#E05A47]/30 text-[#E05A47]">አስተኚ</span>
             </div>
 
             <div className="space-y-2 pt-4">
@@ -322,13 +324,29 @@ export default function AuthModal({ initialMode = 'signin', onClose, onLoginSucc
                     <div>
                       <label className="block text-xs font-bold text-[#64748B] mb-1"> Email</label>
                       <div className="relative">
-                        <Phone className="w-4 h-4 absolute left-3.5 top-3 text-[#94A3B8]" />
+                        <Mail className="w-4 h-4 absolute left-3.5 top-3 text-[#94A3B8]" />
                         <input
                           type="email"
                           required
                           placeholder="you@example.com"
                           value={emailOrPhone}
                           onChange={(e) => setEmailOrPhone(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-[#CBD5E1] text-xs font-medium text-[#0A1428] focus:outline-none focus:border-[#E05A47]"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-[#64748B] mb-1">Phone Number</label>
+                      <div className="relative">
+                        <Phone className="w-4 h-4 absolute left-3.5 top-3 text-[#94A3B8]" />
+                        <input
+                          type="tel"
+                          required
+                          autoComplete="tel"
+                          placeholder="e.g. +251 9XX XXX XXX"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
                           className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-[#CBD5E1] text-xs font-medium text-[#0A1428] focus:outline-none focus:border-[#E05A47]"
                         />
                       </div>

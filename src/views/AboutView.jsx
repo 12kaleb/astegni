@@ -24,7 +24,7 @@ export default function AboutView({ tutors = [], setActiveTab, onOpenAuth }) {
           </h1>
 
           <p className="text-base text-[#64748B] leading-relaxed">
-            Astegni (አስተኚ) helps students discover verified tutors and manage lessons and assignments in one place.
+            Astegni helps students discover verified tutors and manage lessons and assignments in one place.
           </p>
         </div>
       </section>

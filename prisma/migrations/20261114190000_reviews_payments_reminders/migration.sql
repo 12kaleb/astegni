@@ -47,7 +47,7 @@ ALTER TABLE "Payment" ADD CONSTRAINT "Payment_lessonId_fkey" FOREIGN KEY ("lesso
 ALTER TABLE "Payment" ADD CONSTRAINT "Payment_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 UPDATE "TutorProfile" AS profile
-SET "rating" = aggregates.average_rating,
+SET "rating" = COALESCE(aggregates.average_rating, profile."rating", 5.0),
     "reviewsCount" = aggregates.review_count
 FROM (
     SELECT profile."id",

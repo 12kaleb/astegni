@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import TutorDocumentReview from './TutorDocumentReview';
 import {
   Inbox,
   AlertOctagon,
@@ -561,6 +562,9 @@ export default function TeamDashboard() {
           </div>
         </div>
       )}
+      <div className="mx-auto mt-8 max-w-[1240px] px-4 sm:px-6 lg:px-8">
+        <TutorDocumentReview />
+      </div>
     </div>
   );
 }

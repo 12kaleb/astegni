@@ -18,6 +18,7 @@ export async function POST() {
   }
 
   const metadataName = user.user_metadata?.full_name;
+  const metadataPhone = user.user_metadata?.phone;
   const name =
     typeof metadataName === 'string' && metadataName.trim()
       ? metadataName.trim()
@@ -32,6 +33,7 @@ export async function POST() {
     email: user.email,
     name,
     role,
+    phone: typeof metadataPhone === 'string' ? metadataPhone.trim().slice(0, 24) : null,
     isMinor: Boolean(user.user_metadata?.is_minor),
   };
 
@@ -55,7 +57,11 @@ export async function POST() {
       where: { supabaseAuthId: user.id },
       create: createData,
       // Keep the stored role authoritative after the profile is first created.
-      update: { email: user.email, name },
+      update: {
+        email: user.email,
+        name,
+        ...(typeof metadataPhone === 'string' ? { phone: metadataPhone.trim().slice(0, 24) } : {}),
+      },
       select: {
         id: true,
         email: true,

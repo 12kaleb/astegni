@@ -32,7 +32,7 @@ export async function GET() {
           select: {
             name: true,
             avatarUrl: true,
-            tutorProfile: { select: { hourlyRateETB: true, hourlyRateUSD: true } },
+            tutorProfile: { select: { hourlyRateETB: true } },
           },
         },
       },

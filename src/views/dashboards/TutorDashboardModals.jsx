@@ -2,7 +2,7 @@
 
 import { AlertCircle, Check, X } from 'lucide-react';
 
-export default function TutorDashboardModals({ editProfileModalOpen, setEditProfileModalOpen, profileSaveSuccess, isSavingProfile, handleSaveProfile, profileForm, setProfileForm, subjectGroups, assignmentModalOpen, setAssignmentModalOpen, assignmentForm, setAssignmentForm, assignmentSaving, assignmentMessage, handleCreateAssignment, students, gradeModalAssignment, setGradeModalAssignment, gradeScoreInput, setGradeScoreInput, handleSaveGrade }) {
+export default function TutorDashboardModals({ editProfileModalOpen, setEditProfileModalOpen, profileSaveSuccess, isSavingProfile, handleSaveProfile, profileForm, setProfileForm, selectedSubjects = [], subjectGroups, assignmentModalOpen, setAssignmentModalOpen, assignmentForm, setAssignmentForm, assignmentSaving, assignmentMessage, handleCreateAssignment, students, gradeModalAssignment, setGradeModalAssignment, gradeScoreInput, setGradeScoreInput, handleSaveGrade }) {
   return (
     <>
       {/* 9. MODAL: EDIT PROFILE & TEACHING RATES */}
@@ -91,21 +91,6 @@ export default function TutorDashboardModals({ editProfileModalOpen, setEditProf
                     onChange={(e) =>
                       setProfileForm({ ...profileForm, hourlyRateETB: e.target.value })
                     }
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#FAF7F2] border border-slate-300 text-xs text-[#0A1428]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">
-                    Hourly Rate (USD)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10000"
-                    step="1"
-                    value={profileForm.hourlyRateUSD}
-                    onChange={(e) => setProfileForm({ ...profileForm, hourlyRateUSD: e.target.value })}
                     className="w-full px-3 py-2.5 rounded-xl bg-[#FAF7F2] border border-slate-300 text-xs text-[#0A1428]"
                   />
                 </div>

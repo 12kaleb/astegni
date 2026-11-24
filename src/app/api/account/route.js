@@ -69,7 +69,7 @@ export async function DELETE(request) {
       if (fullUser.tutorProfile) {
         await tx.tutorProfile.update({
           where: { userId: fullUser.id },
-          data: { title: null, university: null, location: null, bio: null, hourlyRateETB: null, hourlyRateUSD: null, subjects: [], modes: [], gradeLevels: [], languages: [], activeDays: [], typicalHours: null, openForStudents: false, isVerified: false, verificationStatus: 'REJECTED' },
+          data: { title: null, university: null, location: null, bio: null, hourlyRateETB: null, subjects: [], modes: [], gradeLevels: [], languages: [], activeDays: [], typicalHours: null, openForStudents: false, isVerified: false, verificationStatus: 'REJECTED' },
         });
       }
       await tx.user.update({

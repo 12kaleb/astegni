@@ -18,7 +18,6 @@ export default function Footer({ setActiveTab, onOpenAuth }) {
               </div>
               <div>
                 <span className="font-extrabold text-2xl tracking-tight text-white">Astegni</span>
-                <span className="ml-2 text-xs font-bold px-2 py-0.5 rounded bg-[#E05A47]/20 text-[#E05A47]">አስተኚ</span>
               </div>
             </div>
 
@@ -61,7 +60,6 @@ export default function Footer({ setActiveTab, onOpenAuth }) {
             <ul className="space-y-2 text-sm text-[#94A3B8]">
               <li><button onClick={() => setActiveTab('tutors')} className="hover:text-[#E05A47] transition-colors">Mathematics & Algebra</button></li>
               <li><button onClick={() => setActiveTab('tutors')} className="hover:text-[#E05A47] transition-colors">Physics & Chemistry</button></li>
-              <li><button onClick={() => setActiveTab('tutors')} className="hover:text-[#E05A47] transition-colors">Amharic & English Languages</button></li>
               <li><button onClick={() => setActiveTab('tutors')} className="hover:text-[#E05A47] transition-colors">Grade 8 & 12 Exam Prep</button></li>
               <li><button onClick={() => setActiveTab('tutors')} className="hover:text-[#E05A47] transition-colors">Python Coding & ICT</button></li>
               <li><button onClick={() => setActiveTab('tutors')} className="hover:text-[#E05A47] transition-colors">Biology & Life Sciences</button></li>
@@ -103,7 +101,7 @@ export default function Footer({ setActiveTab, onOpenAuth }) {
 
         {/* Bottom Bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 text-xs text-[#64748B]">
-          <p>© {new Date().getFullYear()} Astegni Technologies (አስተኚ). All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Astegni Technologies. All rights reserved.</p>
           <div className="flex items-center gap-6">
             <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
             <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>

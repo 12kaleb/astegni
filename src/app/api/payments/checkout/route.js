@@ -19,21 +19,20 @@ export async function POST(request) {
   const validation = paymentCheckoutSchema.safeParse(body);
   if (!validation.success) return NextResponse.json({ error: validationMessage(validation.error) }, { status: 400 });
 
-  const { lessonId, currency } = validation.data;
-  const provider = currency === 'ETB' ? 'CHAPA' : 'STRIPE';
-  if ((provider === 'CHAPA' && !process.env.CHAPA_SECRET_KEY) || (provider === 'STRIPE' && !process.env.STRIPE_SECRET_KEY)) {
-    return NextResponse.json({ error: `${provider} payments are not configured.` }, { status: 503 });
-  }
+  const { lessonId } = validation.data;
+  const currency = 'ETB';
+  const provider = 'CHAPA';
+  if (!process.env.CHAPA_SECRET_KEY) return NextResponse.json({ error: 'CHAPA payments are not configured.' }, { status: 503 });
 
   const lesson = await prisma.lesson.findFirst({
     where: { id: lessonId, studentId: student.id, status: 'CONFIRMED' },
     select: {
       id: true, title: true, durationMins: true,
-      tutor: { select: { tutorProfile: { select: { hourlyRateETB: true, hourlyRateUSD: true } } } },
+      tutor: { select: { tutorProfile: { select: { hourlyRateETB: true } } } },
     },
   });
   if (!lesson) return NextResponse.json({ error: 'Only your confirmed lessons can be paid.' }, { status: 404 });
-  const hourlyRate = currency === 'ETB' ? lesson.tutor.tutorProfile?.hourlyRateETB : lesson.tutor.tutorProfile?.hourlyRateUSD;
+  const hourlyRate = lesson.tutor.tutorProfile?.hourlyRateETB;
   if (!Number.isInteger(hourlyRate) || hourlyRate <= 0) {
     return NextResponse.json({ error: `The tutor has not set a ${currency} hourly rate.` }, { status: 409 });
   }
@@ -64,46 +63,22 @@ export async function POST(request) {
 
   try {
     let checkoutUrl;
-    if (provider === 'CHAPA') {
-      const [firstName, ...rest] = student.name.trim().split(/\s+/);
-      const response = await fetch('https://api.chapa.co/v1/transaction/initialize', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: (amountMinor / 100).toFixed(2), currency, email: student.email,
-          first_name: firstName, last_name: rest.join(' ') || firstName,
-          tx_ref: providerReference,
-          callback_url: `${publicOrigin()}/api/payments/chapa/callback?tx_ref=${encodeURIComponent(providerReference)}`,
-          return_url: `${publicOrigin()}/dashboard?payment=${encodeURIComponent(payment.id)}`,
-          customization: { title: 'Astegni lesson', description: lesson.title },
-        }),
-      });
-      const result = await response.json();
-      if (!response.ok || result.status !== 'success' || !result.data?.checkout_url) throw new Error('Chapa could not initialize checkout.');
-      checkoutUrl = result.data.checkout_url;
-    } else {
-      const params = new URLSearchParams({
-        mode: 'payment',
-        success_url: `${publicOrigin()}/dashboard?payment=${encodeURIComponent(payment.id)}&status=success`,
-        cancel_url: `${publicOrigin()}/dashboard?payment=${encodeURIComponent(payment.id)}&status=cancelled`,
-        customer_email: student.email,
-        client_reference_id: payment.id,
-        'line_items[0][quantity]': '1',
-        'line_items[0][price_data][currency]': currency.toLowerCase(),
-        'line_items[0][price_data][unit_amount]': String(amountMinor),
-        'line_items[0][price_data][product_data][name]': `Lesson: ${lesson.title}`,
-        'metadata[paymentId]': payment.id,
-      });
-      const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params,
-      });
-      const result = await response.json();
-      if (!response.ok || !result.url || !result.id) throw new Error('Stripe could not initialize checkout.');
-      checkoutUrl = result.url;
-      await prisma.payment.update({ where: { id: payment.id }, data: { providerPaymentId: result.id } });
-    }
+    const [firstName, ...rest] = student.name.trim().split(/\s+/);
+    const response = await fetch('https://api.chapa.co/v1/transaction/initialize', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: (amountMinor / 100).toFixed(2), currency, email: student.email,
+        first_name: firstName, last_name: rest.join(' ') || firstName,
+        tx_ref: providerReference,
+        callback_url: `${publicOrigin()}/api/payments/chapa/callback?tx_ref=${encodeURIComponent(providerReference)}`,
+        return_url: `${publicOrigin()}/dashboard?payment=${encodeURIComponent(payment.id)}`,
+        customization: { title: 'Astegni lesson', description: lesson.title },
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok || result.status !== 'success' || !result.data?.checkout_url) throw new Error('Chapa could not initialize checkout.');
+    checkoutUrl = result.data.checkout_url;
 
     await prisma.payment.update({ where: { id: payment.id }, data: { checkoutUrl } });
     return NextResponse.json({ payment: { id: payment.id, provider, amountMinor, currency, checkoutUrl } }, { status: 201 });

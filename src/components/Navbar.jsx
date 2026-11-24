@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { Sparkles, Menu, X, GraduationCap, LayoutDashboard } from 'lucide-react';
-import { useLanguage } from '../lib/i18n';
 
 const ROLE_LABELS = {
   student: { label: 'Student', color: 'bg-blue-100 text-blue-700' },
@@ -21,12 +20,11 @@ export default function Navbar({
   authLoading = false,
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { language, setLanguage, t } = useLanguage();
 
   const navLinks = [
-    { id: 'home', label: t('home'), href: '/' },
-    { id: 'tutors', label: t('tutors'), href: '/tutors' },
-    { id: 'about', label: t('about'), href: '/about' },
+    { id: 'home', label: 'Home', href: '/' },
+    { id: 'tutors', label: 'Find Tutors', href: '/tutors' },
+    { id: 'about', label: 'About Us', href: '/about' },
   ];
 
   return (
@@ -42,13 +40,12 @@ export default function Navbar({
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-2xl tracking-tight text-[#0A1428]">Astegni</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#E05A47]/10 text-[#E05A47]">አስተኚ</span>
               </div>
               <p className="text-[11px] font-medium text-[#64748B] -mt-0.5">Empower Your Learning</p>
             </div>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-1 bg-[#F3ECE0] px-3 py-1.5 rounded-full border border-[#E3DACB]">
+          {!user && !authLoading && <nav className="hidden md:flex items-center gap-1 bg-[#F3ECE0] px-3 py-1.5 rounded-full border border-[#E3DACB]">
             {navLinks.map((link) => (
               <Link
                 key={link.id}
@@ -70,15 +67,10 @@ export default function Navbar({
             >
               Pricing
             </Link>
-          </nav>
+          </nav>}
 
           {/* Desktop Right Controls */}
           <div className="hidden md:flex items-center gap-3">
-            <label className="sr-only" htmlFor="language-select">{t('language')}</label>
-            <select id="language-select" value={language} onChange={(event) => setLanguage(event.target.value)} className="rounded-full border border-[#CBD5E1] bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0A1428]">
-              <option value="en">English</option><option value="am">አማርኛ</option>
-            </select>
-
             {/* Dashboard button */}
             <Link
               href="/dashboard"
@@ -89,7 +81,7 @@ export default function Navbar({
               }`}
             >
               <LayoutDashboard className="w-3.5 h-3.5 text-[#E05A47]" />
-              <span>{t('dashboard')}</span>
+              <span>Dashboard</span>
             </Link>
 
             {/* Auth */}
@@ -97,7 +89,7 @@ export default function Navbar({
               <div className="w-20 h-8 rounded-full bg-slate-100 animate-pulse" />
             ) : user ? (
               <>
-                <Link href="/account/privacy" className="text-xs font-semibold text-slate-700 hover:text-[#E05A47]">{t('account')}</Link>
+                <Link href="/account/privacy" className="text-xs font-semibold text-slate-700 hover:text-[#E05A47]">Account &amp; privacy</Link>
                 <div className="flex items-center gap-2">
                   <span className="max-w-32 truncate text-xs font-semibold text-[#0A1428]">
                     {user.name}
@@ -112,7 +104,7 @@ export default function Navbar({
                   onClick={onSignOut}
                   className="px-3 py-2 text-xs font-bold text-[#0A1428] hover:text-[#E05A47] transition-colors"
                 >
-                  {t('signOut')}
+                  Sign Out
                 </button>
               </>
             ) : (
@@ -121,14 +113,14 @@ export default function Navbar({
                   onClick={() => onOpenAuth('signin')}
                   className="px-3 py-2 text-xs font-bold text-[#0A1428] hover:text-[#E05A47] transition-colors"
                 >
-                  {t('signIn')}
+                  Sign In
                 </button>
                 <button
                   onClick={() => onOpenAuth('register')}
                   className="btn btn-primary btn-sm flex items-center gap-1.5 shadow-md text-xs py-2 px-3.5"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-200" />
-                  <span>{t('getStarted')}</span>
+                  <span>Get Started</span>
                 </button>
               </>
             )}
@@ -149,11 +141,7 @@ export default function Navbar({
         {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div id="mobile-navigation" className="pb-4 flex flex-col gap-1 border-t border-[#E8E2D8] pt-3">
-            <label className="px-4 pt-2 text-xs font-semibold text-slate-700" htmlFor="mobile-language-select">{t('language')}</label>
-            <select id="mobile-language-select" value={language} onChange={(event) => setLanguage(event.target.value)} className="mx-4 mb-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0A1428]">
-              <option value="en">English</option><option value="am">አማርኛ</option>
-            </select>
-            {navLinks.map((link) => (
+            {!user && !authLoading && navLinks.map((link) => (
               <Link
                 key={link.id}
                 href={link.href}
@@ -168,13 +156,13 @@ export default function Navbar({
               </Link>
             ))}
 
-            <Link
+            {!user && !authLoading && <Link
               href="/#pricing-section"
               onClick={() => setMobileMenuOpen(false)}
               className="w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold text-[#0A1428] hover:bg-[#F3ECE0] transition-all"
             >
               Pricing
-            </Link>
+            </Link>}
 
             <Link
               href="/dashboard"
@@ -186,13 +174,13 @@ export default function Navbar({
               }`}
             >
               <LayoutDashboard className="w-4 h-4 text-[#E05A47]" />
-              {t('dashboard')}
+              Dashboard
             </Link>
 
             <div className="mt-2 flex flex-col gap-2">
               {user ? (
                 <>
-                  <Link href="/account/privacy" onClick={() => setMobileMenuOpen(false)} className="px-4 py-2 text-sm font-semibold text-[#0A1428]">{t('account')}</Link>
+                  <Link href="/account/privacy" onClick={() => setMobileMenuOpen(false)} className="px-4 py-2 text-sm font-semibold text-[#0A1428]">Account &amp; privacy</Link>
                   <div className="flex items-center justify-between px-4 py-2 bg-[#FAF7F2] rounded-xl border border-[#E8E2D8]">
                     <span className="text-xs font-semibold text-[#0A1428] truncate">{user.name}</span>
                     {ROLE_LABELS[user.role] && (
@@ -205,7 +193,7 @@ export default function Navbar({
                     onClick={() => { onSignOut(); setMobileMenuOpen(false); }}
                     className="w-full py-2.5 rounded-xl font-bold border border-[#CBD5E1] text-[#0A1428] text-sm"
                   >
-                    {t('signOut')}
+                    Sign Out
                   </button>
                 </>
               ) : (
@@ -214,13 +202,13 @@ export default function Navbar({
                     onClick={() => { onOpenAuth('signin'); setMobileMenuOpen(false); }}
                     className="w-full py-2.5 rounded-xl font-bold border border-[#CBD5E1] text-[#0A1428] text-sm"
                   >
-                    {t('signIn')}
+                    Sign In
                   </button>
                   <button
                     onClick={() => { onOpenAuth('register'); setMobileMenuOpen(false); }}
                     className="w-full btn btn-primary py-3 rounded-xl font-bold text-sm"
                   >
-                    {t('getStarted')}
+                    Get Started
                   </button>
                 </>
               )}

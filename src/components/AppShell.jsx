@@ -135,7 +135,7 @@ export default function AppShell({ children }) {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Unable to load your profile.');
         if (active && requestId === latestRequest) {
-          setUser({ name: result.profile.name, role: ROLE_NAMES[result.profile.role] || 'student', avatarUrl: result.profile.avatarUrl, timeZone: result.profile.timeZone });
+          setUser({ id: result.profile.id, name: result.profile.name, role: ROLE_NAMES[result.profile.role] || 'student', avatarUrl: result.profile.avatarUrl, timeZone: result.profile.timeZone });
           setAuthLoading(false);
         }
       } catch (error) {

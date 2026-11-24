@@ -8,6 +8,10 @@ const calendarDateTime = z.string()
 export const signupSchema = z.object({
   name: z.string().trim().min(2).max(100),
   email: z.string().trim().email().max(254),
+  phone: z.string().trim().min(7).max(24).regex(/^\+?[0-9\s().-]+$/).refine((value) => {
+    const digits = value.replace(/\D/g, '').length;
+    return digits >= 7 && digits <= 15;
+  }, 'Enter a valid phone number.'),
   password: z.string().min(8).max(128),
   role: z.enum(['student', 'tutor']),
   gradeLevel: z.string().trim().max(40).optional(),
@@ -72,7 +76,7 @@ export const lessonBookingSchema = z.object({
 }).strict();
 
 export const lessonActionSchema = z.object({
-  action: z.enum(['CONFIRM', 'DECLINE', 'CANCEL', 'RESCHEDULE', 'ACCEPT_RESCHEDULE', 'DECLINE_RESCHEDULE']),
+  action: z.enum(['CONFIRM', 'DECLINE', 'CANCEL', 'RESCHEDULE', 'ACCEPT_RESCHEDULE', 'DECLINE_RESCHEDULE', 'START_SESSION', 'COMPLETE_SESSION']),
   scheduledAt: bookingDateTime.optional(),
   durationMins: z.number().int().min(30).max(180).multipleOf(15).optional(),
   timeZone: timezoneSchema.optional(),
@@ -83,6 +87,17 @@ export const lessonActionSchema = z.object({
   return true;
 }, 'Provide the new time and a reason for a reschedule, or a reason for cancellation.');
 
+export const lessonSessionItemCreateSchema = z.object({
+  type: z.enum(['CHAT', 'AGENDA', 'NOTE']),
+  text: z.string().trim().min(1).max(2000),
+}).strict();
+
+export const lessonSessionItemUpdateSchema = z.object({
+  type: z.enum(['AGENDA', 'NOTE']),
+  id: z.string().trim().min(1).max(64),
+  done: z.boolean(),
+}).strict();
+
 export const tutorProfileUpdateSchema = z.object({
   title: z.string().trim().max(120).optional(),
   location: z.string().trim().max(120).optional(),
@@ -90,7 +105,6 @@ export const tutorProfileUpdateSchema = z.object({
   university: z.string().trim().max(160).optional(),
   experienceYears: z.number().int().min(0).max(80).nullable().optional(),
   hourlyRateETB: z.number().int().min(0).max(1000).nullable().optional(),
-  hourlyRateUSD: z.number().int().min(0).max(10000).nullable().optional(),
   openForStudents: z.boolean().optional(),
   subjects: z.array(z.string().trim().min(1).max(80)).max(30).optional(),
   modes: z.array(z.string().trim().min(1).max(40)).max(10).optional(),
@@ -107,7 +121,7 @@ export const lessonReviewSchema = z.object({
 
 export const paymentCheckoutSchema = z.object({
   lessonId: z.string().trim().min(1).max(64),
-  currency: z.enum(['ETB', 'USD']),
+  currency: z.literal('ETB'),
 }).strict();
 
 export const tutorLessonCreateSchema = z.object({
