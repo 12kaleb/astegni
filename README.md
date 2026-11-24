@@ -1,6 +1,29 @@
 # Astegni
 
-Astegni is a tutoring marketplace built with Next.js 16, React 19, Supabase Auth, and Prisma 6. It includes tutor discovery, student and tutor dashboards, weekly tutor availability, lesson booking requests, assignments, and admin review tools.
+Astegni is an online tutoring marketplace that helps students find tutors, request lessons, and keep learning activities in one place. Tutors can manage availability, lessons, and student workspaces, while administrators review tutor documents and support marketplace operations.
+
+[Visit Astegni](https://astegni.com) · [View the source on GitHub](https://github.com/12kaleb/astegni)
+
+## Features
+
+- Browse tutor profiles and submit lesson booking requests based on tutor availability.
+- Role-based experiences for students, tutors, managers, and administrators.
+- Manage lessons, session links, assignments, and tutor–student workspaces.
+- Send messages and share curriculum information between tutors and students.
+- Review tutors and provide operational safety and document review tools.
+- Support Ethiopian birr payments through Chapa, with signed webhook or server-side transaction verification.
+- Send booking and lesson reminder emails when an email provider is configured.
+- Deploy the combined web application and API as a standalone Docker image.
+
+## Technology stack
+
+- **Web application and API:** Next.js 16, React 19, JavaScript
+- **Authentication:** Supabase Auth
+- **Database:** PostgreSQL with Prisma 6
+- **Payments:** Chapa (optional)
+- **Email:** Resend (optional)
+- **Lesson sessions:** Jitsi-compatible meeting links
+- **Deployment:** Docker and Docker Compose
 
 ## Requirements
 
